@@ -1,14 +1,41 @@
 package exene
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
+type Dim struct {
+	Min int
+	Nat int
+}
+
+type Bounds struct {
+	Width Dim
+	Height Dim
+}
+
+func FixedDim(v int) Dim {
+	return Dim{v, v}
+}
+
+func FixedBounds(w int, h int) Bounds {
+	return Bounds{FixedDim(w), FixedDim(h)}
+}
+
+type Html struct {
+	Id string `json:"id"`
+	Tag string `json:"tag"`
+	Attrs map[string]string `json:"attrs"`
+	Style map[string]string `json:"style"`
+	Text string `json:"text"`
+	Children []Html `json:"children"`
+	Events []string `json:"events"`
+}
 
 type Widget interface {
-	Type () string
-	//Dispatcher() Dispatcher
+	BoundsOf() Bounds
+	// May also want to pass the environment?
+	Realize(*WebInterface, int, int) Html
 }
 
 
@@ -20,6 +47,20 @@ func NewId() int {
 	return newId
 }
 
+
+type Shell struct {
+	root bool
+	widget Widget
+}
+
+func NewShell(w Widget) Shell {
+	return Shell{false, w}
+}
+
+func (sh Shell) Init(webIfc *WebInterface, width int, height int) Html {
+	return sh.widget.Realize(webIfc, width, height)
+}
+
 /*
    ************************************************************
    
@@ -28,160 +69,138 @@ func NewId() int {
    ************************************************************
 */
 
-
 type Button struct {
-	Id string `json:"id"`
-	Label string `json:"label"`
-	Style map[string]string `json:"style"`
-	dispatcher Dispatcher
+    bounds Bounds
+	Id string
+	Label string
+	Action func()
+	webIfc *WebInterface
 }
 
-func (w *Button) MarshalJSON() ([]byte, error) {
-	w2 := struct{Button; Type string `json:"type"`}{*w, w.Type()}
-	j, err := json.Marshal(w2)
-	if err != nil {
-		return nil, err
-	}
-	return j, nil
-}
-
-func (w *Button) Type() string {
-	return "button"
-}
-
-func (w *Button) WithStyle(style string, value string) *Button {
-	w.Style[style] = value
-	return w
-}
-
-func NewButton(d Dispatcher, label string, act func()) *Button {
-	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	style := make(map[string]string)
+func (w *Button) Realize(webIfc *WebInterface, width int, height int) Html {
+	w.webIfc = webIfc
 	eventDispatch := make(chan bool)
-	button := &Button{strId, label, style, d}
 	go func() {
 		for {
 			// Also: handle destroy messages?
 			select {
 			case <- eventDispatch:
-				act()
+				w.Action()
 			}
 		}
 	}()
-	d.RegisterEvent(strId, eventDispatch)
+	webIfc.dispatchMap[w.Id] = eventDispatch
+	return Html{
+		w.Id,
+		"button",
+		nil,
+		map[string]string{
+			"height": fmt.Sprintf("%dpx", w.bounds.Height.Nat),
+			"width": fmt.Sprintf("%dpx", w.bounds.Width.Nat),
+			"overflow": "hidden",
+			"border": "none",
+		},
+		w.Label,
+		nil,
+		[]string{"click"},
+	}
+}
+
+func (w *Button) BoundsOf() Bounds {
+	return w.bounds
+}
+
+
+func NewButton(bounds Bounds, label string, act func()) *Button {
+	id := NewId()
+	strId := fmt.Sprintf("%d", id)
+	button := &Button{bounds, strId, label, act, nil}
 	return button
 }
 
 
-
-
 type Text struct {
-	Id string `json:"id"`
-	Text string `json:"text"`
-	Style map[string]string `json:"style"`
-	dispatcher Dispatcher
+    bounds Bounds
+	Id string 
+	Text string
+	webIfc *WebInterface
 }
 
-func (w *Text) MarshalJSON() ([]byte, error) {
-	w2 := struct{Text; Type string `json:"type"`}{*w, w.Type()}
-	j, err := json.Marshal(w2)
-	if err != nil {
-		return nil, err
+func (w *Text) Realize(webIfc *WebInterface, width int, height int) Html {
+	w.webIfc = webIfc
+	return Html{
+		w.Id,
+		"div",
+		nil,
+		map[string]string{
+			"height": fmt.Sprintf("%dpx", w.bounds.Height.Nat),
+			"width": fmt.Sprintf("%dpx", w.bounds.Width.Nat),
+			"overflow": "hidden",
+		},
+		w.Text,
+		nil,
+		nil,
 	}
-	return j, nil
 }
 
-func (w *Text) Type() string {
-	return "text"
+func (w *Text) BoundsOf() Bounds {
+	return w.bounds
 }
 
-func (w *Text) WithStyle(style string, value string) *Text {
-	w.Style[style] = value
-	return w
-}
-
-func (w *Text) UpdateLabel(text string) {
+func (w *Text) UpdateText(text string) {
 	w.Text = text
-	w.dispatcher.PutUpdate() <- map[string]any{"target": w.Id, "type": "update", "text": text}
+	w.webIfc.updateChan <- map[string]any{"target": w.Id, "type": "update-text", "text": text}
 }
 
-func NewText(d Dispatcher, text string) *Text {
+func NewText(bounds Bounds, text string) *Text {
 	id := NewId()
 	strId := fmt.Sprintf("%d", id)
-	style := make(map[string]string)
-	textWidget := &Text{strId, text, style, d}
+	textWidget := &Text{bounds, strId, text, nil}
 	return textWidget
 }
 
 
 
-
-
-type Gap struct {
-	Id string `json:"id"`
-	Size string `json:"size"`
-	Style map[string]string `json:"style"`
-	dispatcher Dispatcher
+type Frame struct {
+	Id string
+	size int
+	widget Widget
+	webIfc *WebInterface
 }
 
-func (w *Gap) MarshalJSON() ([]byte, error) {
-	w2 := struct{Gap; Type string `json:"type"`}{*w, w.Type()}
-	j, err := json.Marshal(w2)
-	if err != nil {
-		return nil, err
+func (w *Frame) Realize(webIfc *WebInterface, width int, height int) Html {
+	w.webIfc = webIfc
+	bounds := w.BoundsOf()
+	subHtml := w.widget.Realize(webIfc, width, height)
+	return Html{
+		w.Id,
+		"div",
+		nil,
+		map[string]string{
+			"height": fmt.Sprintf("%dpx", bounds.Height.Nat),
+			"width": fmt.Sprintf("%dpx", bounds.Width.Nat),
+			"overflow": "hidden",
+			"border": fmt.Sprintf("%dpx solid black", w.size),
+		},
+		"",
+		[]Html{
+			subHtml,
+		},
+		nil,
 	}
-	return j, nil
 }
 
-func (w *Gap) Type() string {
-	return "gap"
+func (w *Frame) BoundsOf() Bounds {
+	bounds := w.widget.BoundsOf()
+	bounds.Width.Nat = 2 * w.size + bounds.Width.Nat
+	bounds.Height.Nat = 2 * w.size + bounds.Height.Nat
+	return bounds
 }
 
-func (w *Gap) WithStyle(style string, value string) *Gap {
-	w.Style[style] = value
-	return w
-}
-
-func NewGap(d Dispatcher, size string) *Gap {
+func NewFrame(size int, widget Widget) *Frame {
 	id := NewId()
 	strId := fmt.Sprintf("%d", id)
-	style := make(map[string]string)
-	gap := &Gap{strId, size, style, d}
-	return gap
+	frame := &Frame{strId, size, widget, nil}
+	return frame
 }
 
-
-
-type Box struct {
-	Id string `json:"id"`
-	Direction string `json:"direction"`
-	Widgets []Widget `json:"widgets"`
-	Style map[string]string `json:"style"`
-	dispatcher Dispatcher
-}
-
-func (w *Box) MarshalJSON() ([]byte, error) {
-	w2 := struct{Box; Type string `json:"type"`}{*w, w.Type()}
-	j, err := json.Marshal(w2)
-	if err != nil {
-		return nil, err
-	}
-	return j, nil
-}
-
-func (w *Box) Type() string {
-	return "layout"
-}
-
-func (w *Box) WithStyle(style string, value string) *Box {
-	w.Style[style] = value
-	return w
-}
-
-func NewBox(d Dispatcher, direction string, widgets []Widget) *Box {
-	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	style := make(map[string]string)
-	return &Box{strId, direction, widgets, style, d}
-}

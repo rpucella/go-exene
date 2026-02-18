@@ -1,20 +1,27 @@
 
-function printString(s) {
-    const elt = document.createElement("p")
-    elt.innerText = s
-    document.body.appendChild(elt)
-}
-    
 // Turn this into a class?
 
 let _ready = false
 let _socket = null
+let _debug = false
+
+function toggleDebug() {
+    for (const elt of document.querySelectorAll("body *")) {
+        if (_debug) {
+            elt.classList.remove("debug")
+        } else {
+            elt.classList.add("debug")
+        }
+    }
+    _debug = !(_debug)
+}
 
 function connect(url) {
     const socket = new WebSocket(url)
     socket.addEventListener('open', (evt) => {
         console.log('Websocket connection open')
         _ready = true
+        initialMessage()
     })
     socket.addEventListener('close', (evt) => {
         console.log(`Websocket connection closed: ${evt.code} ${evt.reason}`)
@@ -33,17 +40,19 @@ function connect(url) {
             if (elt) {
                 document.body.appendChild(elt)
             }
-        } else if (msg.type == "update") {
-            if (msg.text) {
-                document.querySelector(`#ID${msg.target}`).innerText = msg.text
-            } else {
-                console.log(`Unknown update: ${evt.data}`)
-            }
+        } else if (msg.type == "update-text") {
+            document.querySelector(`#ID${msg.target}`).innerText = msg.text
         } else {
             console.log(`Unknown message: ${evt.data}`)
         }
     })
     _socket = socket
+}
+
+function initialMessage() {
+    const height = window.innerHeight
+    const width = window.innerWidth
+    sendToExene({type: "init", height, width})
 }
 
 function sendToExene(message) {
@@ -53,71 +62,39 @@ function sendToExene(message) {
 }
 
 function createWidget(w) {
-    let elt
-    switch (w.type) {
-    case "button":
-        elt = document.createElement("button")
+    console.log(w)
+    const elt = document.createElement(w.tag)
+    w.attrs = w.attrs || {}
+    w.style = w.style || {}
+    w.children = w.children || []
+    w.events = w.events || []
+    // Defaults.
+    elt.style.boxSizing = "border-box"
+    if (w.id) {
         elt.setAttribute("id", `ID${w.id}`)
-        elt.style.boxSizing = "border-box"
-        for (const entry of Object.entries(w.style)) {
-            elt.style[entry[0]] = entry[1]
-        }
-        elt.innerText = w.label
-        elt.addEventListener("click", (evt) => {
-            msg = {
-                "type": "event",
-                "event": "click",
-                "target": w.id
-            }
-            _socket.send(JSON.stringify(msg))
-        })
-        return elt
-        
-    case "text":
-        elt = document.createElement("span")
-        elt.setAttribute("id", `ID${w.id}`)
-        elt.style.boxSizing = "border-box"
-        for (const entry of Object.entries(w.style)) {
-            elt.style[entry[0]] = entry[1]
-        }
-        elt.innerText = w.text
-        return elt
-        
-    case "gap":
-        elt = document.createElement("div")
-        elt.setAttribute("id", `ID${w.id}`)
-        elt.style.boxSizing = "border-box"
-        elt.style.height = w.size
-        elt.style.width = w.size
-        for (const entry of Object.entries(w.style)) {
-            elt.style[entry[0]] = entry[1]
-        }
-        return elt
-        
-    case "layout":
-        elt = document.createElement("div")
-        elt.setAttribute("id", `ID${w.id}`)
-        elt.style.boxSizing = "border-box"
-        for (const entry of Object.entries(w.style)) {
-            elt.style[entry[0]] = entry[1]
-        }
-        elt.style.display = "flex"
-        elt.style.flexDirection = w.direction.startsWith("column") ? "column" : "row"
-        if (w.direction.endsWith("top") || w.direction.endsWith("left")) {
-            elt.style.alignItems = "flex-start"
-        } else if (w.direction.endsWith("bottom") || w.direction.endsWith("right")) {
-            elt.style.alignItems = "flex-end"
-        } else {
-            elt.style.alignItems = "center"
-        }
-        for (const w2 of w.widgets) {
-            const elt2 = createWidget(w2)
-            elt.appendChild(elt2)
-        }
-        return elt
-
-    default:
-        console.log(`Unknown widget type ${w.type} in ${JSON.stringify(w)}`)
-        return null
     }
+    // Attributes.
+    for (const [k, v] of Object.entries(w.attrs)) {
+        elt.setAttribute(k, v)
+    }
+    // Style.
+    for (const [k, v] of Object.entries(w.style)) {
+        elt.style[k] = v
+    }
+    // Inner text.
+    if (w.text) {
+        elt.innerText = w.text
+    }
+    // Children elements.
+    for (const c of w.children) {
+        const subelt = createWidget(c)
+        elt.appendChild(subelt)
+    }
+    // Event handlers.
+    for (const e of w.events) {
+        elt.addEventListener(e, (evt) => {
+            sendToExene({type: "event", name: e, target: w.id})
+        })
+    }
+    return elt
 }

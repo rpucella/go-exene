@@ -28,18 +28,18 @@ type App struct {
 	browser []string
 }
 
-func NewBrowserApp(d Dispatcher, w Widget, browser []string) *App {
+func NewBrowserApp(sh Shell, browser []string) *App {
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		panic(err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	url := fmt.Sprintf("http://localhost:%d", port)
-	log.Printf("Listening on port %d\n", port)
+	log.Printf("listening on port %d\n", port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", GetPage(port))
 	mux.HandleFunc("GET /sdk.js", func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "web/sdk.js") })
-	mux.HandleFunc("GET /socket", WebSocketHandler(d, w))
+	mux.HandleFunc("GET /socket", WebSocketHandler(sh))
 	return &App{url, listener, mux, browser}
 }
 
@@ -48,7 +48,7 @@ func (app *App) Start() {
 		browser := app.browser
 		delay := time.Duration(2)
 		time.Sleep(delay * time.Second)
-		log.Printf("Executing %s\n", browser[0])
+		log.Printf("executing %s\n", browser[0])
 		browser = append(browser, app.Url)
 		cmd := exec.Command(browser[0], browser[1:]...)
 		err := cmd.Run()
@@ -67,6 +67,7 @@ func GetPage(port int) func(http.ResponseWriter, *http.Request) {
   <head>
    <script src="/sdk.js"></script>
    <script>window.onload = () => { connect("ws://localhost:%d/socket") }</script>
+   <style>.debug { box-sizing: border-box; border: 1px solid red; }</style>
   </head>
   <body style="margin: 0;">
   </body>
@@ -80,9 +81,9 @@ var upgrader = websocket.Upgrader{
     WriteBufferSize: 1024,
 }
 
-func WebSocketHandler(d Dispatcher, widget Widget) func(http.ResponseWriter, *http.Request) {
+func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Websocket upgrade request %s\n", r.URL)
+		log.Printf("websocket upgrade request %s\n", r.URL)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Println(err)
@@ -93,48 +94,70 @@ func WebSocketHandler(d Dispatcher, widget Widget) func(http.ResponseWriter, *ht
 			conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, ""), time.Now().Add(writeWait))
 			return nil
 		})
-		outgoing2 := struct{Type string `json:"type"`; Widget Widget `json:"widget"`}{"widget", widget}
+		eventChan := make(chan map[string]any)
+		updateChan := make(chan map[string]any)
+		dispatchMap := make(map[string]chan bool)
+		webIfc := &WebInterface{eventChan, updateChan, dispatchMap}
+		// Read size off the first message coming from the frontend advertising the size!
+		// Also create the environmental channels
+		_, initMessage, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			return
+		}
+		initMsg := make(map[string]any)
+		err = json.Unmarshal(initMessage, &initMsg)
+		if err != nil {
+			log.Println("read:", err)
+			return
+		}
+		if initMsg["type"] != "init" {
+			log.Println("init message type:", initMsg["type"])
+			return
+		}
+		width := int(initMsg["width"].(float64))
+		height := int(initMsg["height"].(float64))
+		log.Printf("viewport size %d x %d\n", width, height)
+		html := sh.Init(webIfc, width, height)
+		outgoing2 := struct{Type string `json:"type"`; Widget Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
 		if err != nil {
 			return
 		}
 		conn.WriteMessage(websocket.TextMessage, msg2)
-		go MessagePump(conn, d)
+		go WebSocketMessagePump(conn, webIfc)
 		for {
 			select {
-			case obj := <- d.GetEvent():
+			case obj := <- eventChan:
 				if obj["type"].(string) == "event" {
 				}
 				// Assume click event.
 				target := obj["target"].(string)
-				d.DispatchEvent(target)
-			case obj := <- d.PutUpdate():
+				// Dispatch by sending to the shell instead?
+				dispatchMap[target] <- true
+				
+			case obj := <- updateChan:
 				outgoing, err := json.Marshal(obj)
 				if err != nil {
 					// Ignore.
 					continue
 				}
+				// Updates = change label/text
+				// Updates = change size
+				// Batch updates!
 				conn.WriteMessage(websocket.TextMessage, outgoing)
 			}
 		}
 	}
 }
 
-type Dispatcher interface {
-	GetEvent () chan map[string]any
-	PutUpdate () chan map[string]any
-	DispatchEvent (id string)
-	RegisterEvent (id string, event chan bool)
+type WebInterface struct {
+	eventChan chan map[string]any
+	updateChan chan map[string]any
+	dispatchMap map[string]chan bool
 }
 
-type Dispatch struct {
-	EventChan chan map[string]any
-	UpdateChan chan map[string]any
-	Table map[string]chan bool
-}
-
-func MessagePump(conn *websocket.Conn, d Dispatcher) {
-	// Message pump.
+func WebSocketMessagePump(conn *websocket.Conn, webIfc *WebInterface) {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -147,29 +170,6 @@ func MessagePump(conn *websocket.Conn, d Dispatcher) {
 			log.Println("read:", err)
 			continue
 		}
-		d.GetEvent() <- msg
+		webIfc.eventChan <- msg
 	}
-}
-
-func NewDispatcher() *Dispatch {
-	event := make(chan map[string]any)
-	update := make(chan map[string]any)
-	table := make(map[string]chan bool)
-	return &Dispatch{event, update, table}
-}
-
-func (d *Dispatch) GetEvent() chan map[string]any {
-	return d.EventChan
-}
-
-func (d *Dispatch) PutUpdate() chan map[string]any {
-	return d.UpdateChan
-}
-
-func (d *Dispatch) DispatchEvent(id string) {
-	d.Table[id] <- true
-}
-
-func (d *Dispatch) RegisterEvent(id string, event chan bool) {
-	d.Table[id] = event
 }

@@ -13,34 +13,69 @@ var browser []string = []string{
 }
 
 func main() {
-	dispatcher := exene.NewDispatcher()
-	widget := MainWidget(dispatcher)
-	app := exene.NewBrowserApp(dispatcher, widget, browser)
+	widget := MainWidget()
+	shell := exene.NewShell(widget)
+	app := exene.NewBrowserApp(shell, browser)
 	app.Start()
 }
 
-func MainWidget(d exene.Dispatcher) exene.Widget {
+func MainWidget() exene.Widget {
 	count := 0
-	title := exene.NewText(d, "Sample Counting Example").
+	title := exene.NewText(
+		exene.FixedBounds(400, 50),
+		"Sample Counting Example",
+	)
+	/*
 		WithStyle("fontSize", "24px").
 		WithStyle("color", "white").
 		WithStyle("backgroundColor", "#666666").
-		WithStyle("padding", "16px")
-	label := exene.NewText(d, "Count = 0").WithStyle("fontSize", "24px")
+	*/
+	label := exene.NewText(
+		exene.FixedBounds(400, 40),
+		"Count = 0",
+	)
+	/*
+	    WithStyle("fontSize", "24px")
+	*/
 	setLabel := func(newCount int) {
 		count = newCount
-		label.UpdateLabel(fmt.Sprintf("Count = %d", count))
+		label.UpdateText(fmt.Sprintf("Count = %d", count))
 	}
-	increment := exene.NewButton(d, "Increment", func() { setLabel(count + 1) }).
-		WithStyle("padding", "8px").
+	increment := exene.NewButton(
+		exene.FixedBounds(120, 40),
+		"Increment",
+		func() { setLabel(count + 1) },
+	)
+	/*
 		WithStyle("width", "100px")
-	reset := exene.NewButton(d, "Reset", func() { setLabel(0) }).
-		WithStyle("padding", "8px")
-	gap := func(n int) exene.Widget {
-		return exene.NewGap(d, fmt.Sprintf("%dpx", n))
-	}
-	buttons := exene.NewBox(d, "row-center", []exene.Widget{increment, gap(32), reset})
-	main := exene.NewBox(d, "column-center", []exene.Widget{title, gap(48), buttons, gap(48), label}).
-		WithStyle("padding", "32px")
+	*/
+	reset := exene.NewButton(
+		exene.FixedBounds(120, 40),
+		"Reset",
+		func() { setLabel(0) },
+	)
+	main := exene.NewBox(
+		exene.BoxVtCenter{
+			[]exene.BoxEntry{
+				exene.BoxWidget{title},
+				exene.BoxWidget{
+					exene.NewFrame(
+						5, 
+						exene.NewBox(
+							exene.BoxHzCenter{
+								[]exene.BoxEntry{
+									exene.BoxWidget{increment},
+									exene.BoxGlue{exene.FixedDim(20)},
+									exene.BoxWidget{reset},
+								},
+							},
+						),
+					),
+				},
+				exene.BoxGlue{exene.FixedDim(20)},
+				exene.BoxWidget{label},
+			},
+		},
+	)
 	return main
 }
