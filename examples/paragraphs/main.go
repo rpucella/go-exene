@@ -20,15 +20,15 @@ func main() {
 
 func MainWidget() exene.Widget {
 	title := exene.NewText(
-		exene.FixedBounds(200, 50),
+		exene.FixBounds(200, 50),
 		"Paragraphs Demo",
 	)
 	para1 := exene.NewText(
-		exene.FixedBounds(400, 100),
+		exene.FixBounds(400, 100),
 		"Lorem ipsum dolor sit amet.",
 	)
 	para2 := exene.NewText(
-		exene.FixedBounds(300, 50),
+		exene.FixBounds(300, 50),
 		"Whereas now I can achieve the same by simplifying using built-in min() method, without casting over and over the operands.",
 	)
 	return exene.NewBox(

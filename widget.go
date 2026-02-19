@@ -7,6 +7,7 @@ import (
 type Dim struct {
 	Min int
 	Nat int
+	Max int   // Use <0 for "no max"
 }
 
 type Bounds struct {
@@ -14,12 +15,60 @@ type Bounds struct {
 	Height Dim
 }
 
-func FixedDim(v int) Dim {
-	return Dim{v, v}
+func FixDim(v int) Dim {
+	return Dim{v, v, v}
 }
 
-func FixedBounds(w int, h int) Bounds {
-	return Bounds{FixedDim(w), FixedDim(h)}
+func CompatibleDim(d Dim, size int) bool {
+	if size < d.Min {
+		return false
+	}
+	if d.Max >= 0 && size > d.Max {
+		return false
+	}
+	return true
+}
+
+func ClampDim(d Dim, size int) int {
+	if size < d.Min {
+		return d.Min
+	}
+	if d.Max >= 0 && size > d.Max {
+		return d.Max
+	}
+	return size
+}
+
+func MaxDim(d1 Dim, d2 Dim) Dim {
+	newMin := max(d1.Min, d2.Min)
+	newNat := max(d1.Nat, d2.Nat)
+	newMax := -1
+	if d1.Max >= 0 && d2.Max >= 0 {
+		newMax = max(d1.Max, d2.Max)
+	}
+	return Dim{newMin, newNat, newMax}
+}
+
+func AddDim(d1 Dim, d2 Dim) Dim {
+	newMin := d1.Min + d2.Min
+	newNat := d1.Nat + d2.Nat
+	newMax := -1
+	if d1.Max >= 0 && d2.Max >= 0 {
+		newMax = d1.Max + d2.Max
+	}
+	return Dim{newMin, newNat, newMax}
+}
+
+func FixBounds(w int, h int) Bounds {
+	return Bounds{FixDim(w), FixDim(h)}
+}
+
+func CompatibleBounds(b Bounds, width int, height int) bool {
+	return CompatibleDim(b.Width, width) && CompatibleDim(b.Height, height)
+}
+
+func ClampBounds(b Bounds, width int, height int) (int, int) {
+	return ClampDim(b.Width, width), ClampDim(b.Height, height)
 }
 
 type Html struct {
@@ -90,13 +139,14 @@ func (w *Button) Realize(webIfc *WebInterface, width int, height int) Html {
 		}
 	}()
 	webIfc.dispatchMap[w.Id] = eventDispatch
+	rWidth, rHeight := ClampBounds(w.bounds, width, height)
 	return Html{
 		w.Id,
 		"button",
 		nil,
 		map[string]string{
-			"height": fmt.Sprintf("%dpx", w.bounds.Height.Nat),
-			"width": fmt.Sprintf("%dpx", w.bounds.Width.Nat),
+			"height": fmt.Sprintf("%dpx", rHeight),
+			"width": fmt.Sprintf("%dpx", rWidth),
 			"overflow": "hidden",
 			"border": "none",
 		},
@@ -128,13 +178,14 @@ type Text struct {
 
 func (w *Text) Realize(webIfc *WebInterface, width int, height int) Html {
 	w.webIfc = webIfc
+	rWidth, rHeight := ClampBounds(w.bounds, width, height)
 	return Html{
 		w.Id,
 		"div",
 		nil,
 		map[string]string{
-			"height": fmt.Sprintf("%dpx", w.bounds.Height.Nat),
-			"width": fmt.Sprintf("%dpx", w.bounds.Width.Nat),
+			"height": fmt.Sprintf("%dpx", rHeight),
+			"width": fmt.Sprintf("%dpx", rWidth),
 			"overflow": "hidden",
 		},
 		w.Text,
@@ -170,15 +221,15 @@ type Frame struct {
 
 func (w *Frame) Realize(webIfc *WebInterface, width int, height int) Html {
 	w.webIfc = webIfc
-	bounds := w.BoundsOf()
 	subHtml := w.widget.Realize(webIfc, width, height)
+	rWidth, rHeight := ClampBounds(w.BoundsOf(), width, height)
 	return Html{
 		w.Id,
 		"div",
 		nil,
 		map[string]string{
-			"height": fmt.Sprintf("%dpx", bounds.Height.Nat),
-			"width": fmt.Sprintf("%dpx", bounds.Width.Nat),
+			"height": fmt.Sprintf("%dpx", rHeight),
+			"width": fmt.Sprintf("%dpx", rWidth),
 			"overflow": "hidden",
 			"border": fmt.Sprintf("%dpx solid black", w.size),
 		},
@@ -192,9 +243,12 @@ func (w *Frame) Realize(webIfc *WebInterface, width int, height int) Html {
 
 func (w *Frame) BoundsOf() Bounds {
 	bounds := w.widget.BoundsOf()
-	bounds.Width.Nat = 2 * w.size + bounds.Width.Nat
-	bounds.Height.Nat = 2 * w.size + bounds.Height.Nat
-	return bounds
+	dim2 := FixDim(2 * w.size)
+	newBounds := Bounds{
+		AddDim(bounds.Width, dim2),
+		AddDim(bounds.Height, dim2),
+	}
+	return newBounds
 }
 
 func NewFrame(size int, widget Widget) *Frame {
@@ -203,4 +257,3 @@ func NewFrame(size int, widget Widget) *Frame {
 	frame := &Frame{strId, size, widget, nil}
 	return frame
 }
-

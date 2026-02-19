@@ -2,6 +2,7 @@ package exene
 
 import (
 	"fmt"
+	"math"
 )
 
 type BoxEntry interface{
@@ -49,25 +50,49 @@ type BoxGlue struct {
 	Dim Dim
 }
 
-func verticalLayout(webIfc *WebInterface, width int, height int, dir direction, boxes []BoxEntry, align string) Html {
+func layout(webIfc *WebInterface, width int, height int, dir direction, bounds Bounds, boxes []BoxEntry, align string) Html {
 	subHtmls := make([]Html, len(boxes))
-	boxWidth := 0
-	boxHeight := 0
-	for i, w := range boxes {
-		boxWidth = max(boxWidth, w.boxBoundsOf(dir).Width.Nat)
-		boxHeight += w.boxBoundsOf(dir).Height.Nat
-		subHtmls[i] = w.boxRealize(webIfc, width, height / len(boxes), dir)
+	rWidth, rHeight := ClampBounds(bounds, width, height)
+	var sizes []int
+	if dir == verticalDir {
+		dims := make([]Dim, len(boxes))
+		for i, b := range boxes {
+			dims[i] = b.boxBoundsOf(dir).Height
+		}
+		sizes = calculatePartition(dims, rHeight)
+	}
+	if dir == horizontalDir {
+		dims := make([]Dim, len(boxes))
+		for i, b := range boxes {
+			dims[i] = b.boxBoundsOf(dir).Width
+		}
+		sizes = calculatePartition(dims, rWidth)
+	}
+	for i, b := range boxes {
+		if dir == verticalDir {
+			subHtmls[i] = b.boxRealize(webIfc, width, sizes[i], dir)
+		}
+		if dir == horizontalDir {
+			subHtmls[i] = b.boxRealize(webIfc, sizes[i], height, dir)
+		}
+	}
+	flexDirection := ""
+	if dir == verticalDir {
+		flexDirection = "column"
+	}
+	if dir == horizontalDir {
+		flexDirection = "row"
 	}
 	return Html{
 		"",
 		"div",
 	    nil,
 		map[string]string{
-			"height": fmt.Sprintf("%dpx", boxHeight),
-			"width": fmt.Sprintf("%dpx", boxWidth),
+			"width": fmt.Sprintf("%dpx", rWidth),
+			"height": fmt.Sprintf("%dpx", rHeight),
 			"overflow": "hidden",
 			"display": "flex",
-			"flex-direction": "column",
+			"flex-direction": flexDirection,
 			"align-items": align,
 		},
 		"",
@@ -76,24 +101,112 @@ func verticalLayout(webIfc *WebInterface, width int, height int, dir direction, 
 	}
 }
 
+func calculatePartition(bnds []Dim, size int) []int {
+	result := make([]int, len(bnds))
+	bTotal := Dim{0, 0, 0}
+	for i, bb := range bnds {
+		bTotal = AddDim(bTotal, bb)
+		result[i] = bb.Nat
+	}
+	//fmt.Println("----------------------------------------")
+	if size < bTotal.Nat {
+		for {
+			//fmt.Println("  ", result)
+			current := 0
+			countAboveMin := 0
+			delta := bTotal.Nat
+			for i, bb := range bnds {
+				current += result[i]
+				if result[i] > bb.Min {
+					delta = min(delta, result[i] - bb.Min)
+					countAboveMin += 1
+				}
+			}
+			if countAboveMin == 0 {
+				// Everything is at min, so let's bail.
+				return result
+			}
+			excess := current - size
+			if excess < len(bnds) {
+				// We got it - stop.
+				return result
+			}
+			toSubtract := delta
+			if excess < countAboveMin * delta {
+				toSubtract = int(math.Ceil(float64(excess) / float64(countAboveMin)))
+			}
+			for i, bb := range bnds {
+				if result[i] > bb.Min {
+					result[i] = result[i] - toSubtract
+				}
+			}
+		}
+		return result
+	}
+	if size > bTotal.Nat {
+		for {
+			//fmt.Println("  ", result)
+			current := 0
+			countBelowMax := 0
+			delta := -1
+			for i, bb := range bnds {
+				current += result[i]
+				if bb.Max < 0 {
+					countBelowMax += 1
+				} else if result[i] < bb.Max {
+					if delta < 0 {
+						delta = bb.Max - result[i]
+					} else {
+						delta = min(delta, bb.Max - result[i])
+					}
+					countBelowMax += 1
+				}
+			}
+			if countBelowMax == 0 {
+				// Everything is at min, so let's bail.
+				return result
+			}
+			excess := size - current
+			if excess < len(bnds) {
+				// We got it - stop.
+				return result
+			}
+			toAdd := delta
+			// delta = -1 means that no bounds has a max, so we can just allocate the excess uniformly.
+			if delta == -1 || excess < countBelowMax * delta {
+				toAdd = int(math.Floor(float64(excess) / float64(countBelowMax)))
+			}
+			for i, bb := range bnds {
+				if bb.Max < 0 || result[i] < bb.Max {
+					result[i] = result[i] + toAdd
+				}
+			}
+		}
+		return result
+	}
+	return result
+}
+
 func layoutBoundsOf(boxes []BoxEntry, dir direction) Bounds {
-	boxWidth := 0
-	boxHeight := 0
-	for _, w := range boxes {
+	width := FixDim(0)
+	height := FixDim(0)
+	for _, b := range boxes {
 		if dir == verticalDir {
-			boxWidth = max(boxWidth, w.boxBoundsOf(dir).Width.Nat)
-			boxHeight += w.boxBoundsOf(dir).Height.Nat
+			bb := b.boxBoundsOf(dir)
+			width = MaxDim(width, bb.Width)
+			height = AddDim(height, bb.Height)
 		}
 		if dir == horizontalDir {
-			boxWidth += w.boxBoundsOf(dir).Width.Nat
-			boxHeight = max(boxHeight, w.boxBoundsOf(dir).Height.Nat)
+			bb := b.boxBoundsOf(dir)
+			width = AddDim(width, bb.Width)
+			height = MaxDim(height, bb.Height)
 		}
 	}
-	return FixedBounds(boxWidth, boxHeight)
+	return Bounds{width, height}
 }
 
 func (b BoxVtLeft) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return verticalLayout(webIfc, width, height, verticalDir, b.Boxes, "flex-start")
+	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start")
 }
 
 func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
@@ -101,7 +214,7 @@ func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
 }
 
 func (b BoxVtCenter) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return verticalLayout(webIfc, width, height, verticalDir, b.Boxes, "center")
+	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center")
 }
 
 func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
@@ -109,43 +222,15 @@ func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
 }
 
 func (b BoxVtRight) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return verticalLayout(webIfc, width, height, verticalDir, b.Boxes, "flex-end")
+	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end")
 }
 
 func (b BoxVtRight) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, verticalDir)
 }
 
-
-func horizontalLayout(webIfc *WebInterface, width int, height int, dir direction, boxes []BoxEntry, align string) Html {
-	subHtmls := make([]Html, len(boxes))
-	boxWidth := 0
-	boxHeight := 0
-	for i, w := range boxes {
-		boxWidth += w.boxBoundsOf(dir).Width.Nat
-		boxHeight = max(boxHeight, w.boxBoundsOf(dir).Height.Nat)
-		subHtmls[i] = w.boxRealize(webIfc, width / len(boxes), height, dir)
-	}
-	return Html{
-		"",
-		"div",
-	    nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", boxHeight),
-			"width": fmt.Sprintf("%dpx", boxWidth),
-			"overflow": "hidden",
-			"display": "flex",
-			"flex-direction": "row",
-			"align-items": align,
-		},
-		"",
-		subHtmls,
-	    nil,
-	}
-}
-
 func (b BoxHzTop) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return horizontalLayout(webIfc, width, height, horizontalDir, b.Boxes, "flex-start")
+	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start")
 }
 
 func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
@@ -153,7 +238,7 @@ func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
 }
 
 func (b BoxHzCenter) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return horizontalLayout(webIfc, width, height, horizontalDir, b.Boxes, "center")
+	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center")
 }
 
 func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
@@ -161,7 +246,7 @@ func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
 }
 
 func (b BoxHzBottom) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return horizontalLayout(webIfc, width, height, horizontalDir, b.Boxes, "flex-end")
+	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end")
 }
 
 func (b BoxHzBottom) boxBoundsOf(dir direction) Bounds {
@@ -177,14 +262,9 @@ func (b BoxWidget) boxBoundsOf(dir direction) Bounds {
 }
 
 func (b BoxGlue) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	boxWidth := 0
-	boxHeight := 0
-	if dir == verticalDir {
-		boxHeight = b.Dim.Nat
-	}
-	if dir == horizontalDir {
-		boxWidth = b.Dim.Nat
-	}
+	bounds := b.boxBoundsOf(dir)
+	boxWidth := ClampDim(bounds.Width, width)
+	boxHeight := ClampDim(bounds.Height, height)
 	return Html{
 		"",
 		"div",
