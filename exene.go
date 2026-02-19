@@ -81,6 +81,18 @@ var upgrader = websocket.Upgrader{
     WriteBufferSize: 1024,
 }
 
+type Size struct {
+	Width int
+	Height int
+}
+
+func AddSize(s1 Size, s2 Size) Size {
+	return Size{
+		max(0, s1.Width + s2.Width),
+		max(0, s1.Height + s2.Height),
+	}
+}
+
 func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("websocket upgrade request %s\n", r.URL)
@@ -94,10 +106,11 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 			conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, ""), time.Now().Add(writeWait))
 			return nil
 		})
-		eventChan := make(chan map[string]any)
+		inputChan := make(chan map[string]any)
 		updateChan := make(chan map[string]any)
 		dispatchMap := make(map[string]chan bool)
-		webIfc := &WebInterface{eventChan, updateChan, dispatchMap}
+		resizeChan := make(chan Size)
+		webIfc := &WebInterface{updateChan, dispatchMap}
 		// Read size off the first message coming from the frontend advertising the size!
 		// Also create the environmental channels
 		_, initMessage, err := conn.ReadMessage()
@@ -118,23 +131,28 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		width := int(initMsg["width"].(float64))
 		height := int(initMsg["height"].(float64))
 		log.Printf("viewport size %d x %d\n", width, height)
-		html := sh.Init(webIfc, width, height)
+		size := Size{width, height}
+		html := sh.Init(webIfc, size, resizeChan)
 		outgoing2 := struct{Type string `json:"type"`; Widget Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
 		if err != nil {
 			return
 		}
 		conn.WriteMessage(websocket.TextMessage, msg2)
-		go WebSocketMessagePump(conn, webIfc)
+		go WebSocketMessagePump(conn, inputChan)
 		for {
 			select {
-			case obj := <- eventChan:
+			case obj := <- inputChan:
 				if obj["type"].(string) == "event" {
+					// Assume click event.
+					target := obj["target"].(string)
+					// Dispatch by sending to the shell instead?
+					dispatchMap[target] <- true
+				} else if obj["type"].(string) == "resize" {
+					width := int(obj["width"].(float64))
+					height := int(obj["height"].(float64))
+					resizeChan <- Size{width, height}
 				}
-				// Assume click event.
-				target := obj["target"].(string)
-				// Dispatch by sending to the shell instead?
-				dispatchMap[target] <- true
 				
 			case obj := <- updateChan:
 				outgoing, err := json.Marshal(obj)
@@ -144,7 +162,7 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 				}
 				// Updates = change label/text
 				// Updates = change size
-				// Batch updates!
+				// Batch updates?
 				conn.WriteMessage(websocket.TextMessage, outgoing)
 			}
 		}
@@ -152,12 +170,15 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 }
 
 type WebInterface struct {
-	eventChan chan map[string]any
 	updateChan chan map[string]any
 	dispatchMap map[string]chan bool
 }
 
-func WebSocketMessagePump(conn *websocket.Conn, webIfc *WebInterface) {
+func (wi *WebInterface) UpdateSize(id string, size Size) {
+	wi.updateChan <- map[string]any{"target": id, "type": "update-size", "height": size.Height, "width": size.Width}
+}
+
+func WebSocketMessagePump(conn *websocket.Conn, inputChan chan map[string]any) {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -170,6 +191,7 @@ func WebSocketMessagePump(conn *websocket.Conn, webIfc *WebInterface) {
 			log.Println("read:", err)
 			continue
 		}
-		webIfc.eventChan <- msg
+		///log.Println("msg", msg)
+		inputChan <- msg
 	}
 }

@@ -23,7 +23,7 @@ func MainWidget() exene.Widget {
 	count := 0
 	title := exene.NewText(
 		exene.Bounds{exene.Dim{400, 400, -1}, exene.FixDim(50)},
-		"Sample Counting Example",
+		"Counter Demo",
 	)
 	/*
 		WithStyle("fontSize", "24px").

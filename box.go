@@ -5,18 +5,36 @@ import (
 	"math"
 )
 
-type BoxEntry interface{
-	boxRealize(*WebInterface, int, int, direction) Html
-	boxBoundsOf(direction) Bounds
+type Box struct {
+	bounds Bounds
+	Id string
+	Box BoxEntry
+	webIfc *WebInterface
 }
 
-type direction int
+func NewBox(box BoxEntry) *Box {
+	// Shortcut!!!
+	bounds := box.boxBoundsOf(noDir)
+	id := NewId()
+	strId := fmt.Sprintf("%d", id)
+	return &Box{bounds, strId, box, nil}
+}
 
-const (
-	verticalDir direction = iota
-	horizontalDir
-	noDir
-)
+func (w *Box) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
+	w.webIfc = webIfc
+	html := w.Box.boxRealize(webIfc, size, noDir, resizeChan)
+	return html
+}
+
+func (w *Box) BoundsOf() Bounds {
+	return w.bounds
+}
+
+
+type BoxEntry interface{
+	boxRealize(*WebInterface, Size, direction, chan Size) Html
+	boxBoundsOf(direction) Bounds
+}
 
 type BoxVtLeft struct {
 	Boxes []BoxEntry
@@ -50,32 +68,135 @@ type BoxGlue struct {
 	Dim Dim
 }
 
-func layout(webIfc *WebInterface, width int, height int, dir direction, bounds Bounds, boxes []BoxEntry, align string) Html {
-	subHtmls := make([]Html, len(boxes))
-	rWidth, rHeight := ClampBounds(bounds, width, height)
-	var sizes []int
-	if dir == verticalDir {
-		dims := make([]Dim, len(boxes))
-		for i, b := range boxes {
-			dims[i] = b.boxBoundsOf(dir).Height
+type direction int
+
+const (
+	verticalDir direction = iota
+	horizontalDir
+	noDir
+)
+
+func (b BoxVtLeft) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
+}
+
+func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, verticalDir)
+}
+
+func (b BoxVtCenter) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
+}
+
+func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, verticalDir)
+}
+
+func (b BoxVtRight) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
+}
+
+func (b BoxVtRight) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, verticalDir)
+}
+
+func (b BoxHzTop) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
+}
+
+func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, horizontalDir)
+}
+
+func (b BoxHzCenter) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
+}
+
+func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, horizontalDir)
+}
+
+func (b BoxHzBottom) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
+}
+
+func (b BoxHzBottom) boxBoundsOf(dir direction) Bounds {
+	return layoutBoundsOf(b.Boxes, horizontalDir)
+}
+
+func (b BoxWidget) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	return b.Widget.Realize(webIfc, size, resizeChan)
+}
+
+func (b BoxWidget) boxBoundsOf(dir direction) Bounds {
+	return b.Widget.BoundsOf()
+}
+
+func (b BoxGlue) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+	id := NewId()
+	strId := fmt.Sprintf("%d", id)
+	bounds := b.boxBoundsOf(dir)
+	boxSize := ClampBounds(bounds, size)
+	go func() {
+		for {
+			select {
+			case newSize := <- resizeChan:
+				rSize := ClampBounds(bounds, newSize)
+				webIfc.UpdateSize(strId, rSize)
+			}
 		}
-		sizes = calculatePartition(dims, rHeight)
+	}()
+	
+	return Html{
+		strId,
+		"div",
+	    nil,
+		map[string]string{
+			"height": fmt.Sprintf("%dpx", boxSize.Height),
+			"width": fmt.Sprintf("%dpx", boxSize.Width),
+		},
+		"",
+		nil,
+	    nil,
+	}
+}
+
+func (b BoxGlue) boxBoundsOf(dir direction) Bounds {
+	var width Dim
+	var height Dim
+	if dir == verticalDir {
+		height = b.Dim
 	}
 	if dir == horizontalDir {
-		dims := make([]Dim, len(boxes))
-		for i, b := range boxes {
-			dims[i] = b.boxBoundsOf(dir).Width
-		}
-		sizes = calculatePartition(dims, rWidth)
+		width = b.Dim
 	}
+	return Bounds{width, height}
+}
+
+func layout(webIfc *WebInterface, size Size, dir direction, bounds Bounds, boxes []BoxEntry, align string, resizeChan chan Size) Html {
+	id := NewId()
+	strId := fmt.Sprintf("%d", id)
+	subHtmls := make([]Html, len(boxes))
+	rSize := ClampBounds(bounds, size)
+	var sizes = calculateSizes(boxes, dir, rSize)
+	subResizeChans := make([]chan Size, len(boxes))
 	for i, b := range boxes {
-		if dir == verticalDir {
-			subHtmls[i] = b.boxRealize(webIfc, width, sizes[i], dir)
-		}
-		if dir == horizontalDir {
-			subHtmls[i] = b.boxRealize(webIfc, sizes[i], height, dir)
-		}
+		subResizeChans[i] = make(chan Size)
+		subHtmls[i] = b.boxRealize(webIfc, sizes[i], dir, subResizeChans[i])
 	}
+	go func() {
+		for {
+			select {
+			case newSize := <- resizeChan:
+				rSize := ClampBounds(bounds, newSize)
+				subSizes := calculateSizes(boxes, dir, rSize)
+				for i, ch := range subResizeChans {
+					ch <- subSizes[i]
+				}
+				webIfc.UpdateSize(strId, rSize)
+			}
+		}
+	}()
 	flexDirection := ""
 	if dir == verticalDir {
 		flexDirection = "column"
@@ -84,12 +205,12 @@ func layout(webIfc *WebInterface, width int, height int, dir direction, bounds B
 		flexDirection = "row"
 	}
 	return Html{
-		"",
+		strId,
 		"div",
 	    nil,
 		map[string]string{
-			"width": fmt.Sprintf("%dpx", rWidth),
-			"height": fmt.Sprintf("%dpx", rHeight),
+			"width": fmt.Sprintf("%dpx", rSize.Width),
+			"height": fmt.Sprintf("%dpx", rSize.Height),
 			"overflow": "hidden",
 			"display": "flex",
 			"flex-direction": flexDirection,
@@ -101,7 +222,34 @@ func layout(webIfc *WebInterface, width int, height int, dir direction, bounds B
 	}
 }
 
-func calculatePartition(bnds []Dim, size int) []int {
+func calculateSizes(boxes []BoxEntry, dir direction, size Size) []Size {
+	var lengths []int
+	result := make([]Size, len(boxes))
+	if dir == verticalDir {
+		dims := make([]Dim, len(boxes))
+		for i, b := range boxes {
+			dims[i] = b.boxBoundsOf(dir).Height
+		}
+		lengths = calculatePartition(dims, size.Height)
+		for i, n := range lengths {
+			result[i] = Size{size.Width, n}
+		}
+	}
+	if dir == horizontalDir {
+		dims := make([]Dim, len(boxes))
+		for i, b := range boxes {
+			dims[i] = b.boxBoundsOf(dir).Width
+		}
+		lengths = calculatePartition(dims, size.Width)
+		for i, n := range lengths {
+			result[i] = Size{n, size.Height}
+		}
+	}
+	return result
+}
+
+
+func calculatePartition(bnds []Dim, length int) []int {
 	result := make([]int, len(bnds))
 	bTotal := Dim{0, 0, 0}
 	for i, bb := range bnds {
@@ -109,7 +257,7 @@ func calculatePartition(bnds []Dim, size int) []int {
 		result[i] = bb.Nat
 	}
 	//fmt.Println("----------------------------------------")
-	if size < bTotal.Nat {
+	if length < bTotal.Nat {
 		for {
 			//fmt.Println("  ", result)
 			current := 0
@@ -126,7 +274,7 @@ func calculatePartition(bnds []Dim, size int) []int {
 				// Everything is at min, so let's bail.
 				return result
 			}
-			excess := current - size
+			excess := current - length
 			if excess < len(bnds) {
 				// We got it - stop.
 				return result
@@ -143,7 +291,7 @@ func calculatePartition(bnds []Dim, size int) []int {
 		}
 		return result
 	}
-	if size > bTotal.Nat {
+	if length > bTotal.Nat {
 		for {
 			//fmt.Println("  ", result)
 			current := 0
@@ -166,7 +314,7 @@ func calculatePartition(bnds []Dim, size int) []int {
 				// Everything is at min, so let's bail.
 				return result
 			}
-			excess := size - current
+			excess := length - current
 			if excess < len(bnds) {
 				// We got it - stop.
 				return result
@@ -203,116 +351,5 @@ func layoutBoundsOf(boxes []BoxEntry, dir direction) Bounds {
 		}
 	}
 	return Bounds{width, height}
-}
-
-func (b BoxVtLeft) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start")
-}
-
-func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
-}
-
-func (b BoxVtCenter) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center")
-}
-
-func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
-}
-
-func (b BoxVtRight) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end")
-}
-
-func (b BoxVtRight) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
-}
-
-func (b BoxHzTop) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start")
-}
-
-func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxHzCenter) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center")
-}
-
-func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxHzBottom) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return layout(webIfc, width, height, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end")
-}
-
-func (b BoxHzBottom) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxWidget) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	return b.Widget.Realize(webIfc, width, height)
-}
-
-func (b BoxWidget) boxBoundsOf(dir direction) Bounds {
-	return b.Widget.BoundsOf()
-}
-
-func (b BoxGlue) boxRealize(webIfc *WebInterface, width int, height int, dir direction) Html {
-	bounds := b.boxBoundsOf(dir)
-	boxWidth := ClampDim(bounds.Width, width)
-	boxHeight := ClampDim(bounds.Height, height)
-	return Html{
-		"",
-		"div",
-	    nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", boxHeight),
-			"width": fmt.Sprintf("%dpx", boxWidth),
-		},
-		"",
-		nil,
-	    nil,
-	}
-}
-
-func (b BoxGlue) boxBoundsOf(dir direction) Bounds {
-	var width Dim
-	var height Dim
-	if dir == verticalDir {
-		height = b.Dim
-	}
-	if dir == horizontalDir {
-		width = b.Dim
-	}
-	return Bounds{width, height}
-}
-
-type Box struct {
-	bounds Bounds
-	Id string
-	Box BoxEntry
-	webIfc *WebInterface
-}
-
-func (w *Box) Realize(webIfc *WebInterface, width int, height int) Html {
-	w.webIfc = webIfc
-	html := w.Box.boxRealize(webIfc, width, height, noDir)
-	return html
-}
-
-func (w *Box) BoundsOf() Bounds {
-	return w.bounds
-}
-
-func NewBox(box BoxEntry) *Box {
-	// Shortcut!!!
-	bounds := box.boxBoundsOf(noDir)
-	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	return &Box{bounds, strId, box, nil}
 }
 

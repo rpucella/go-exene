@@ -21,7 +21,7 @@ function connect(url) {
     socket.addEventListener('open', (evt) => {
         console.log('Websocket connection open')
         _ready = true
-        initialMessage()
+        initialize()
     })
     socket.addEventListener('close', (evt) => {
         console.log(`Websocket connection closed: ${evt.code} ${evt.reason}`)
@@ -29,6 +29,9 @@ function connect(url) {
     })
     socket.addEventListener('message', (evt) => {
         const msg = JSON.parse(evt.data)
+        if (_debug) {
+            console.dir(msg)
+        }
         if (msg.type == "message") {
             console.log(`Message: ${msg.text}`)
         } else if (msg.type == "widget") {
@@ -42,6 +45,10 @@ function connect(url) {
             }
         } else if (msg.type == "update-text") {
             document.querySelector(`#ID${msg.target}`).innerText = msg.text
+        } else if (msg.type == "update-size") {
+            const elt = document.querySelector(`#ID${msg.target}`)
+            elt.style.height = `${msg.height}px`
+            elt.style.width = `${msg.width}px`
         } else {
             console.log(`Unknown message: ${evt.data}`)
         }
@@ -49,10 +56,28 @@ function connect(url) {
     _socket = socket
 }
 
-function initialMessage() {
+function initialize() {
+    let timeoutId = null
+    // Wait 0.1s without a resize before firing off a resize message.
+    const delayResize = 100 
     const height = window.innerHeight
     const width = window.innerWidth
     sendToExene({type: "init", height, width})
+    window.addEventListener("resize", (evt) => {
+        if (timeoutId) {
+            // We already have a timer going, so reset it
+            window.clearTimeout(timeoutId)
+            timeoutId = null
+        }
+        timeoutId = window.setTimeout(() => {
+            const height = window.innerHeight
+            const width = window.innerWidth
+            if (_debug) {
+                console.log(`Resizing ${width} x ${height}`)
+            }
+            sendToExene({type: "resize", height, width})
+        }, delayResize)
+    })
 }
 
 function sendToExene(message) {
@@ -62,7 +87,6 @@ function sendToExene(message) {
 }
 
 function createWidget(w) {
-    console.log(w)
     const elt = document.createElement(w.tag)
     w.attrs = w.attrs || {}
     w.style = w.style || {}
