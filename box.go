@@ -154,6 +154,9 @@ func (b BoxGlue) boxRealize(webIfc *WebInterface, size Size, dir direction, resi
 		map[string]string{
 			"height": fmt.Sprintf("%dpx", boxSize.Height),
 			"width": fmt.Sprintf("%dpx", boxSize.Width),
+			"overflow": "hidden",
+			"transition": "height 0.1s, width 0.1s",
+			"boxSizing": "border-box",
 		},
 		"",
 		nil,
@@ -215,6 +218,8 @@ func layout(webIfc *WebInterface, size Size, dir direction, bounds Bounds, boxes
 			"display": "flex",
 			"flex-direction": flexDirection,
 			"align-items": align,
+			"transition": "height 0.1s, width 0.1s",
+			"boxSizing": "border-box",
 		},
 		"",
 		subHtmls,

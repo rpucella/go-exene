@@ -22,8 +22,10 @@ func main() {
 func MainWidget() exene.Widget {
 	count := 0
 	title := exene.NewText(
-		exene.Bounds{exene.Dim{400, 400, -1}, exene.FixDim(50)},
+		exene.Bounds{exene.Dim{400, 400, 400}, exene.FixDim(50)},
 		"Counter Demo",
+		exene.WithTextAlign("center"),
+		exene.WithFontSize(36),
 	)
 	/*
 		WithStyle("fontSize", "24px").
@@ -33,6 +35,7 @@ func MainWidget() exene.Widget {
 	label := exene.NewText(
 		exene.FixBounds(400, 40),
 		"Count = 0",
+		exene.WithTextAlign("center"),
 	)
 	/*
 	    WithStyle("fontSize", "24px")
@@ -54,30 +57,34 @@ func MainWidget() exene.Widget {
 		"Reset",
 		func() { setLabel(0) },
 	)
-	main := exene.NewBox(
+	content := exene.NewBox(
 		exene.BoxVtCenter{
 			[]exene.BoxEntry{
 				exene.BoxWidget{title},
-				exene.BoxWidget{
-					exene.NewFrame(
-						5, 
-						exene.NewBox(
-							exene.BoxHzCenter{
-								[]exene.BoxEntry{
-									exene.BoxGlue{exene.Dim{0, 0, 100}},
-									exene.BoxWidget{increment},
-									exene.BoxGlue{exene.Dim{20, 20, 100}},
-									exene.BoxWidget{reset},
-									exene.BoxGlue{exene.Dim{0, 0, 100}},
-								},
-							},
-						),
-					),
+				exene.BoxGlue{exene.Dim{20, 20, 50}},
+				exene.BoxHzCenter{
+					[]exene.BoxEntry{
+						exene.BoxGlue{exene.Dim{0, 0, 100}},
+						exene.BoxWidget{increment},
+						exene.BoxGlue{exene.Dim{20, 20, 100}},
+						exene.BoxWidget{reset},
+						exene.BoxGlue{exene.Dim{0, 0, 100}},
+					},
 				},
-				exene.BoxGlue{exene.Dim{20, 20, -1}},
+				exene.BoxGlue{exene.Dim{20, 20, 50}},
 				exene.BoxWidget{label},
 			},
 		},
+	)
+	main := exene.Center(
+		exene.NewFrame(
+			5,
+			exene.RgbHex("808080"),
+			exene.NewPadding(
+				20, 
+				content,
+			),
+		),
 	)
 	return main
 }

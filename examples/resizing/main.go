@@ -20,17 +20,23 @@ func main() {
 
 func MainWidget() exene.Widget {
 	title := exene.NewFrame(
-		10,
+		5,
+		exene.RgbHex("333333"),
 		exene.NewText(
 			exene.Bounds{exene.Dim{500, 700, 1000}, exene.FixDim(50)},
 			"Resizing Demo",
+			exene.WithFontSize(36),
+			exene.WithTextAlign("center"),
+			exene.WithBackgroundColor("#cccccc"),
 		),
 	)
 	subtitle := exene.NewFrame(
-		10,
+		5,
+		exene.RgbHex("333333"),
 		exene.NewText(
 			exene.Bounds{exene.Dim{700, 700, -1}, exene.FixDim(50)},
 			"(Subtitle)",
+			exene.WithTextAlign("center"),
 		),
 	)
 	main := exene.NewBox(

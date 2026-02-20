@@ -1,6 +1,7 @@
 package exene
 
 import (
+	"fmt"
 )
 
 type Dim struct {
@@ -12,6 +13,96 @@ type Dim struct {
 type Bounds struct {
 	Width Dim
 	Height Dim
+}
+
+type Color string
+
+func Rgb(r, g, b int) Color {
+	return Color("??")
+}
+
+func RgbHex(s string) Color {
+	return Color(fmt.Sprintf("#%s", s))
+}
+
+type Style struct {
+	FontFamily string
+	FontSize string
+	FontStyle string
+	FontWeight string
+	Color string
+	BackgroundColor string
+	TextAlign string
+}
+
+func (s *Style) mapOf() map[string]string {
+	style := make(map[string]string)
+	if s.FontFamily != "" {
+		style["fontFamily"] = s.FontFamily
+	}
+	if s.FontSize != "" {
+		style["fontSize"] = s.FontSize
+	}
+	if s.FontStyle != "" {
+		style["fontStyle"] = s.FontStyle
+	}
+	if s.FontWeight != "" {
+		style["fontWeight"] = s.FontWeight
+	}
+	if s.Color != "" {
+		style["color"] = s.Color
+	}
+	if s.BackgroundColor != "" {
+		style["backgroundColor"] = s.BackgroundColor
+	}
+	if s.TextAlign != "" {
+		style["textAlign"] = s.TextAlign
+	}
+	return style
+}
+
+type StyleOption func(*Style)
+
+func WithFontFamily(v string) StyleOption {
+	return func(s *Style) {
+		s.FontFamily = v
+	}
+}
+
+func WithFontSize(v int) StyleOption {
+	return func(s *Style) {
+		s.FontSize = fmt.Sprintf("%dpx", v)
+	}
+}
+
+func WithFontStyle(v string) StyleOption {
+	return func(s *Style) {
+		s.FontStyle = v
+	}
+}
+
+func WithFontWeight(v string) StyleOption {
+	return func(s *Style) {
+		s.FontWeight = v
+	}
+}
+
+func WithColor(v Color) StyleOption {
+	return func(s *Style) {
+		s.Color = string(v)
+	}
+}
+
+func WithBackgroundColor(v string) StyleOption {
+	return func(s *Style) {
+		s.BackgroundColor = v
+	}
+}
+
+func WithTextAlign(v string) StyleOption {
+	return func(s *Style) {
+		s.TextAlign = v
+	}
 }
 
 func FixDim(v int) Dim {
@@ -119,5 +210,4 @@ func NewShell(w Widget) Shell {
 func (sh Shell) Init(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
 	return sh.widget.Realize(webIfc, size, resizeChan)
 }
-
 

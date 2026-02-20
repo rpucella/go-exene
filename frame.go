@@ -7,14 +7,15 @@ import (
 type Frame struct {
 	Id string
 	thick int
+	color string
 	widget Widget
 	webIfc *WebInterface
 }
 
-func NewFrame(thick int, widget Widget) *Frame {
+func NewFrame(thick int, color Color, widget Widget) *Frame {
 	id := NewId()
 	strId := fmt.Sprintf("%d", id)
-	frame := &Frame{strId, thick, widget, nil}
+	frame := &Frame{strId, thick, string(color), widget, nil}
 	return frame
 }
 
@@ -43,7 +44,9 @@ func (w *Frame) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) H
 			"height": fmt.Sprintf("%dpx", rSize.Height),
 			"width": fmt.Sprintf("%dpx", rSize.Width),
 			"overflow": "hidden",
-			"border": fmt.Sprintf("%dpx solid black", w.thick),
+			"border": fmt.Sprintf("%dpx solid %s", w.thick, w.color),
+			"transition": "height 0.1s, width 0.1s",
+			"boxSizing": "border-box",
 		},
 		"",
 		[]Html{
