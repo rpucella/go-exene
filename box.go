@@ -7,22 +7,21 @@ import (
 
 type Box struct {
 	bounds Bounds
-	Id string
-	Box BoxEntry
-	webIfc *WebInterface
+	id WId
+	box BoxEntry
+	win Window
 }
 
 func NewBox(box BoxEntry) *Box {
 	// Shortcut!!!
 	bounds := box.boxBoundsOf(noDir)
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	return &Box{bounds, strId, box, nil}
+	return &Box{bounds, id, box, nil}
 }
 
-func (w *Box) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	w.webIfc = webIfc
-	html := w.Box.boxRealize(webIfc, size, noDir, resizeChan)
+func (w *Box) Realize(win Window, size Size, resizeChan chan Size) Html {
+	w.win = win
+	html := w.box.boxRealize(win, size, noDir, resizeChan)
 	return html
 }
 
@@ -32,7 +31,7 @@ func (w *Box) BoundsOf() Bounds {
 
 
 type BoxEntry interface{
-	boxRealize(*WebInterface, Size, direction, chan Size) Html
+	boxRealize(Window, Size, direction, chan Size) Html
 	boxBoundsOf(direction) Bounds
 }
 
@@ -76,65 +75,64 @@ const (
 	noDir
 )
 
-func (b BoxVtLeft) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
+func (b BoxVtLeft) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
 }
 
 func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, verticalDir)
 }
 
-func (b BoxVtCenter) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
+func (b BoxVtCenter) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
 }
 
 func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, verticalDir)
 }
 
-func (b BoxVtRight) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
+func (b BoxVtRight) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
 }
 
 func (b BoxVtRight) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, verticalDir)
 }
 
-func (b BoxHzTop) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
+func (b BoxHzTop) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
 }
 
 func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, horizontalDir)
 }
 
-func (b BoxHzCenter) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
+func (b BoxHzCenter) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
 }
 
 func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, horizontalDir)
 }
 
-func (b BoxHzBottom) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(webIfc, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
+func (b BoxHzBottom) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
 }
 
 func (b BoxHzBottom) boxBoundsOf(dir direction) Bounds {
 	return layoutBoundsOf(b.Boxes, horizontalDir)
 }
 
-func (b BoxWidget) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
-	return b.Widget.Realize(webIfc, size, resizeChan)
+func (b BoxWidget) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
+	return b.Widget.Realize(win, size, resizeChan)
 }
 
 func (b BoxWidget) boxBoundsOf(dir direction) Bounds {
 	return b.Widget.BoundsOf()
 }
 
-func (b BoxGlue) boxRealize(webIfc *WebInterface, size Size, dir direction, resizeChan chan Size) Html {
+func (b BoxGlue) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
 	bounds := b.boxBoundsOf(dir)
 	boxSize := ClampBounds(bounds, size)
 	go func() {
@@ -142,13 +140,13 @@ func (b BoxGlue) boxRealize(webIfc *WebInterface, size Size, dir direction, resi
 			select {
 			case newSize := <- resizeChan:
 				rSize := ClampBounds(bounds, newSize)
-				webIfc.UpdateSize(strId, rSize)
+				win.UpdateSize(id, rSize)
 			}
 		}
 	}()
 	
 	return Html{
-		strId,
+		id.String(),
 		"div",
 	    nil,
 		map[string]string{
@@ -176,16 +174,15 @@ func (b BoxGlue) boxBoundsOf(dir direction) Bounds {
 	return Bounds{width, height}
 }
 
-func layout(webIfc *WebInterface, size Size, dir direction, bounds Bounds, boxes []BoxEntry, align string, resizeChan chan Size) Html {
+func layout(win Window, size Size, dir direction, bounds Bounds, boxes []BoxEntry, align string, resizeChan chan Size) Html {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
 	subHtmls := make([]Html, len(boxes))
 	rSize := ClampBounds(bounds, size)
 	var sizes = calculateSizes(boxes, dir, rSize)
 	subResizeChans := make([]chan Size, len(boxes))
 	for i, b := range boxes {
 		subResizeChans[i] = make(chan Size)
-		subHtmls[i] = b.boxRealize(webIfc, sizes[i], dir, subResizeChans[i])
+		subHtmls[i] = b.boxRealize(win, sizes[i], dir, subResizeChans[i])
 	}
 	go func() {
 		for {
@@ -196,7 +193,7 @@ func layout(webIfc *WebInterface, size Size, dir direction, bounds Bounds, boxes
 				for i, ch := range subResizeChans {
 					ch <- subSizes[i]
 				}
-				webIfc.UpdateSize(strId, rSize)
+				win.UpdateSize(id, rSize)
 			}
 		}
 	}()
@@ -208,7 +205,7 @@ func layout(webIfc *WebInterface, size Size, dir direction, bounds Bounds, boxes
 		flexDirection = "row"
 	}
 	return Html{
-		strId,
+		id.String(),
 		"div",
 	    nil,
 		map[string]string{

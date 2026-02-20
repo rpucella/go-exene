@@ -44,9 +44,9 @@ function connect(url) {
                 document.body.appendChild(elt)
             }
         } else if (msg.type == "update-text") {
-            document.querySelector(`#ID${msg.target}`).innerText = msg.text
+            document.querySelector(`#widget-${msg.target}`).innerText = msg.text
         } else if (msg.type == "update-size") {
-            const elt = document.querySelector(`#ID${msg.target}`)
+            const elt = document.querySelector(`#widget-${msg.target}`)
             elt.style.height = `${msg.height}px`
             elt.style.width = `${msg.width}px`
         } else {
@@ -95,7 +95,7 @@ function createWidget(w) {
     // Defaults.
     elt.style.boxSizing = "border-box"
     if (w.id) {
-        elt.setAttribute("id", `ID${w.id}`)
+        elt.setAttribute("id", `widget-${w.id}`)
     }
     // Attributes.
     for (const [k, v] of Object.entries(w.attrs)) {

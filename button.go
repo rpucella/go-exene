@@ -6,41 +6,40 @@ import (
 
 type Button struct {
     bounds Bounds
-	Id string
-	Label string
-	Action func()
-	webIfc *WebInterface
+	id WId
+	label string
+	action func()
+	win Window
 }
 
 
 func NewButton(bounds Bounds, label string, act func()) *Button {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	button := &Button{bounds, strId, label, act, nil}
+	button := &Button{bounds, id, label, act, nil}
 	return button
 }
 
 
-func (w *Button) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	w.webIfc = webIfc
+func (w *Button) Realize(win Window, size Size, resizeChan chan Size) Html {
+	w.win = win
 	rSize := ClampBounds(w.bounds, size)
 	eventChan := make(chan bool)
-	webIfc.dispatchMap[w.Id] = eventChan
+	win.RegisterEventChan(w.id, eventChan)
 	go func() {
 		for {
 			// Also: handle destroy messages?
 			select {
 			case <- eventChan:
-				w.Action()
+				w.action()
 
 			case newSize := <- resizeChan:
 				rSize := ClampBounds(w.bounds, newSize)
-				webIfc.UpdateSize(w.Id, rSize)
+				win.UpdateSize(w.id, rSize)
 			}
 		}
 	}()
 	return Html{
-		w.Id,
+		w.id.String(),
 		"button",
 		nil,
 		map[string]string{
@@ -52,7 +51,7 @@ func (w *Button) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) 
 			"boxSizing": "border-box",
 			"cursor": "pointer",
 		},
-		w.Label,
+		w.label,
 		nil,
 		[]string{"click"},
 	}

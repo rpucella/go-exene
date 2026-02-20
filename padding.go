@@ -5,25 +5,24 @@ import (
 )
 
 type Padding struct {
-	Id string
+	id WId
 	thick int
 	widget Widget
-	webIfc *WebInterface
+	win Window
 }
 
 func NewPadding(thick int, widget Widget) *Padding {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	padding := &Padding{strId, thick, widget, nil}
+	padding := &Padding{id, thick, widget, nil}
 	return padding
 }
 
-func (w *Padding) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	w.webIfc = webIfc
+func (w *Padding) Realize(win Window, size Size, resizeChan chan Size) Html {
+	w.win = win
 	subResizeChan := make(chan Size)
 	rSize := ClampBounds(w.BoundsOf(), size)
 	subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
-	subHtml := w.widget.Realize(webIfc, subSize, subResizeChan)
+	subHtml := w.widget.Realize(win, subSize, subResizeChan)
 	go func() {
 		for {
 			select {
@@ -31,12 +30,12 @@ func (w *Padding) Realize(webIfc *WebInterface, size Size, resizeChan chan Size)
 				rSize := ClampBounds(w.BoundsOf(), newSize)
 				subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
 				subResizeChan <- subSize
-				webIfc.UpdateSize(w.Id, rSize)
+				win.UpdateSize(w.id, rSize)
 			}
 		}
 	}()
 	return Html{
-		w.Id,
+		w.id.String(),
 		"div",
 		nil,
 		map[string]string{

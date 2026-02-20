@@ -6,34 +6,33 @@ import (
 
 type Text struct {
     bounds Bounds
-	Id string 
-	Text string
+	id WId
+	text string
 	style *Style
-	webIfc *WebInterface
+	win Window
 }
 
 
 func NewText(bounds Bounds, text string, styles ...StyleOption) *Text {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
 	style := &Style{}
 	for _, s := range styles {
 		s(style)
 	}
-	textWidget := &Text{bounds, strId, text, style, nil}
+	textWidget := &Text{bounds, id, text, style, nil}
 	return textWidget
 }
 
 
-func (w *Text) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	w.webIfc = webIfc
+func (w *Text) Realize(win Window, size Size, resizeChan chan Size) Html {
+	w.win = win
 	rSize := ClampBounds(w.bounds, size)
 	go func() {
 		for {
 			select {
 			case newSize := <- resizeChan:
 				rSize := ClampBounds(w.bounds, newSize)
-				webIfc.UpdateSize(w.Id, rSize)
+				win.UpdateSize(w.id, rSize)
 			}
 		}
 	}()
@@ -44,11 +43,11 @@ func (w *Text) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Ht
 	styleMap["transition"] = "height 0.1s, width 0.1s"
 	styleMap["boxSizing"] = "border-box"
 	return Html{
-		w.Id,
+		w.id.String(),
 		"div",
 		nil,
 		styleMap,
-		w.Text,
+		w.text,
 		nil,
 		nil,
 	}
@@ -59,6 +58,6 @@ func (w *Text) BoundsOf() Bounds {
 }
 
 func (w *Text) UpdateText(text string) {
-	w.Text = text
-	w.webIfc.updateChan <- map[string]any{"target": w.Id, "type": "update-text", "text": text}
+	w.text = text
+	w.win.UpdateText(w.id, text)
 }

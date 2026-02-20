@@ -110,9 +110,7 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		updateChan := make(chan map[string]any)
 		dispatchMap := make(map[string]chan bool)
 		resizeChan := make(chan Size)
-		webIfc := &WebInterface{updateChan, dispatchMap}
-		// Read size off the first message coming from the frontend advertising the size!
-		// Also create the environmental channels
+		window := &HtmlWindow{updateChan, dispatchMap}
 		_, initMessage, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
@@ -132,10 +130,11 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		height := int(initMsg["height"].(float64))
 		log.Printf("viewport size %d x %d\n", width, height)
 		size := Size{width, height}
-		html := sh.Init(webIfc, size, resizeChan)
+		html := sh.Init(window, size, resizeChan)
 		outgoing2 := struct{Type string `json:"type"`; Widget Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
 		if err != nil {
+			log.Println("marshal:", err)
 			return
 		}
 		conn.WriteMessage(websocket.TextMessage, msg2)
@@ -157,25 +156,15 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 			case obj := <- updateChan:
 				outgoing, err := json.Marshal(obj)
 				if err != nil {
+					log.Println("marshal:", err)
 					// Ignore.
 					continue
 				}
-				// Updates = change label/text
-				// Updates = change size
 				// Batch updates?
 				conn.WriteMessage(websocket.TextMessage, outgoing)
 			}
 		}
 	}
-}
-
-type WebInterface struct {
-	updateChan chan map[string]any
-	dispatchMap map[string]chan bool
-}
-
-func (wi *WebInterface) UpdateSize(id string, size Size) {
-	wi.updateChan <- map[string]any{"target": id, "type": "update-size", "height": size.Height, "width": size.Width}
 }
 
 func WebSocketMessagePump(conn *websocket.Conn, inputChan chan map[string]any) {
@@ -194,4 +183,28 @@ func WebSocketMessagePump(conn *websocket.Conn, inputChan chan map[string]any) {
 		///log.Println("msg", msg)
 		inputChan <- msg
 	}
+}
+
+type Window interface {
+	// Having widget IDs in the interface is slightly uncouth.
+	UpdateSize(WId, Size)
+	UpdateText(WId, string)
+	RegisterEventChan(WId, chan bool)
+}
+
+type HtmlWindow struct {
+	updateChan chan map[string]any
+	dispatchMap map[string]chan bool
+}
+
+func (hw *HtmlWindow) UpdateSize(wid WId, size Size) {
+	hw.updateChan <- map[string]any{"target": string(wid), "type": "update-size", "height": size.Height, "width": size.Width}
+}
+
+func (hw *HtmlWindow) UpdateText(wid WId, text string) {
+	hw.updateChan <- map[string]any{"target": string(wid), "type": "update-text", "text": text}
+}
+
+func (hw *HtmlWindow) RegisterEventChan(wid WId, eventChan chan bool) {
+	hw.dispatchMap[string(wid)] = eventChan
 }

@@ -5,26 +5,25 @@ import (
 )
 
 type Frame struct {
-	Id string
+	id WId
 	thick int
 	color string
 	widget Widget
-	webIfc *WebInterface
+	win Window
 }
 
 func NewFrame(thick int, color Color, widget Widget) *Frame {
 	id := NewId()
-	strId := fmt.Sprintf("%d", id)
-	frame := &Frame{strId, thick, string(color), widget, nil}
+	frame := &Frame{id, thick, string(color), widget, nil}
 	return frame
 }
 
-func (w *Frame) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	w.webIfc = webIfc
+func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) Html {
+	w.win = win
 	subResizeChan := make(chan Size)
 	rSize := ClampBounds(w.BoundsOf(), size)
 	subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
-	subHtml := w.widget.Realize(webIfc, subSize, subResizeChan)
+	subHtml := w.widget.Realize(win, subSize, subResizeChan)
 	go func() {
 		for {
 			select {
@@ -32,12 +31,12 @@ func (w *Frame) Realize(webIfc *WebInterface, size Size, resizeChan chan Size) H
 				rSize := ClampBounds(w.BoundsOf(), newSize)
 				subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
 				subResizeChan <- subSize
-				webIfc.UpdateSize(w.Id, rSize)
+				win.UpdateSize(w.id, rSize)
 			}
 		}
 	}()
 	return Html{
-		w.Id,
+		w.id.String(),
 		"div",
 		nil,
 		map[string]string{

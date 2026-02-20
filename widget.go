@@ -185,18 +185,23 @@ type Html struct {
 type Widget interface {
 	BoundsOf() Bounds
 	// May also want to pass the environment?
-	Realize(*WebInterface, Size, chan Size) Html
+	Realize(Window, Size, chan Size) Html
 }
 
+
+type WId string
 
 var id int = 0
 
-func NewId() int {
+func NewId() WId {
 	newId := id
 	id += 1
-	return newId
+	return WId(fmt.Sprintf("W%d", newId))
 }
 
+func (id WId) String() string {
+	return string(id)
+}
 
 type Shell struct {
 	root bool
@@ -207,7 +212,7 @@ func NewShell(w Widget) Shell {
 	return Shell{false, w}
 }
 
-func (sh Shell) Init(webIfc *WebInterface, size Size, resizeChan chan Size) Html {
-	return sh.widget.Realize(webIfc, size, resizeChan)
+func (sh Shell) Init(win Window, size Size, resizeChan chan Size) Html {
+	return sh.widget.Realize(win, size, resizeChan)
 }
 
