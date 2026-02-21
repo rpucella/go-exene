@@ -192,8 +192,8 @@ type Window interface {
 	InsertChild(WId, int, Html)
 	AppendChild(WId, Html)
 	DeleteChild(WId, int)
-	Hide(WId)
-	Unhide(WId)
+	HideChild(WId, int)
+	UnhideChild(WId, int)
 	RegisterEventChan(WId, chan bool)
 }
 
@@ -226,11 +226,11 @@ func (hw *HtmlWindow) DeleteChild(wid WId, index int) {
 	hw.updateChan <- map[string]any{"target": wid.String(), "type": "delete-child", "index": index}
 }
 
-func (hw *HtmlWindow) Hide(wid WId) {
-	hw.updateChan <- map[string]any{"target": wid.String(), "type": "hide"}
+func (hw *HtmlWindow) HideChild(wid WId, index int) {
+	hw.updateChan <- map[string]any{"target": wid.String(), "type": "hide-child", "index": index}
 }
 
-func (hw *HtmlWindow) Unhide(wid WId) {
-	hw.updateChan <- map[string]any{"target": wid.String(), "type": "unhide"}
+func (hw *HtmlWindow) UnhideChild(wid WId, index int) {
+	hw.updateChan <- map[string]any{"target": wid.String(), "type": "unhide-child", "index": index}
 }
 

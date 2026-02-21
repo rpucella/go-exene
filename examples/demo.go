@@ -56,7 +56,30 @@ func MainWidget() ex.Widget {
 			func() { setLabel(0) },
 		),
 	)
-	var content *ex.Box
+	var panes *ex.Pile
+	switchBtn0 := ex.NewBackground(
+		dark,
+		light,
+		ex.NewButton(
+			ex.FixBounds(200, 40),
+			"Switch to extras",
+			func() {
+				panes.Activate(1)
+			},
+		),
+	)
+	switchBtn1 := ex.NewBackground(
+		dark,
+		light,
+		ex.NewButton(
+			ex.FixBounds(200, 40),
+			"Switch to counter",
+			func() {
+				panes.Activate(0)
+			},
+		),
+	)
+	var extraPane *ex.Box
 	extraCount := 0
 	addExtra := ex.NewFrame(
 		2,
@@ -71,7 +94,7 @@ func MainWidget() ex.Widget {
 					fmt.Sprintf("Extra #%d", extraCount),
 					ex.WithAlign("center"),
 				)
-				content.Insert(4, ex.NewWBox(label))
+				extraPane.Insert(2, ex.NewWBox(label))
 			},
 		),
 	)
@@ -83,29 +106,47 @@ func MainWidget() ex.Widget {
 			"Drop extra",
 			func() {
 				if extraCount > 0 {
-					content.Delete(4)
+					extraPane.Delete(2)
 					extraCount -= 1
 				}
 			},
 		),
 	)
-	content = ex.NewBox(
+	counterPane := ex.NewBox(
 		ex.NewVtCenter(
-			ex.NewWBox(title),
-			ex.NewGlue(ex.NewDim(20, 20, 50)),
 			ex.NewHzCenter(
 				ex.NewGlue(ex.NewDim(0, 0, 100)),
+				ex.NewWBox(switchBtn0),
+				ex.NewGlue(ex.NewDim(20, 20, 100)),
 				ex.NewWBox(increment),
 				ex.NewGlue(ex.NewDim(20, 20, 100)),
 				ex.NewWBox(reset),
+				ex.NewGlue(ex.NewDim(0, 0, 100)),
+			),
+			ex.NewGlue(ex.NewDim(20, 20, 50)),
+			ex.NewWBox(label),
+		),
+	)
+	extraPane = ex.NewBox(
+		ex.NewVtCenter(
+			ex.NewHzCenter(
+				ex.NewGlue(ex.NewDim(0, 0, 100)),
+				ex.NewWBox(switchBtn1),
 				ex.NewGlue(ex.NewDim(20, 20, 100)),
 				ex.NewWBox(addExtra),
 				ex.NewGlue(ex.NewDim(20, 20, 100)),
 				ex.NewWBox(dropExtra),
 				ex.NewGlue(ex.NewDim(0, 0, 100)),
 			),
+			ex.NewGlue(ex.NewDim(20, 20, 100)),
+		),
+	)
+	panes = ex.NewPile(counterPane, extraPane)
+	content := ex.NewBox(
+		ex.NewVtCenter(
+			ex.NewWBox(title),
 			ex.NewGlue(ex.NewDim(20, 20, 50)),
-			ex.NewWBox(label),
+			ex.NewWBox(panes),
 		),
 	)
 	main := ex.Center(

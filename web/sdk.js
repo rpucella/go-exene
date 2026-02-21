@@ -60,14 +60,14 @@ function connect(url) {
         } else if (msg.type == "delete-child") {
             const elt = document.querySelector(`#widget-${msg.target}`)
             elt.removeChild(elt.childNodes[msg.index])
-        } else if (msg.type == "hide") {
-            const elt = document.querySelector(`#widget-${msg.target}`)
+        } else if (msg.type == "hide-child") {
+            const elt = document.querySelector(`#widget-${msg.target}`).childNodes[msg.index]
             if (elt.style.display !== "none") {
                 elt.setAttribute("data-display-save", elt.style.display)
                 elt.style.display = "none"
             }
-        } else if (msg.type == "unhide") {
-            const elt = document.querySelector(`#widget-${msg.target}`)
+        } else if (msg.type == "unhide-child") {
+            const elt = document.querySelector(`#widget-${msg.target}`).childNodes[msg.index]
             if (elt.style.display === "none" && elt.hasAttribute("data-display-save")) {
                 elt.style.display = elt.getAttribute("data-display-save")
                 elt.removeAttribute("data-display-save")
