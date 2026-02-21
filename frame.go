@@ -14,11 +14,14 @@ type Frame struct {
 
 func NewFrame(thick int, color Color, widget Widget) *Frame {
 	id := NewId()
-	frame := &Frame{id, thick, string(color), widget, nil}
+	frame := &Frame{id, thick, color.String(), widget, nil}
 	return frame
 }
 
 func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) Html {
+	if w.win != nil {
+		return Html{}
+	}
 	w.win = win
 	subResizeChan := make(chan Size)
 	rSize := ClampBounds(w.BoundsOf(), size)
@@ -35,18 +38,13 @@ func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
+	styling := CreateDefaultStyle(rSize)
+	styling["border"] = fmt.Sprintf("%dpx solid %s", w.thick, w.color)
 	return Html{
 		w.id.String(),
 		"div",
 		nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", rSize.Height),
-			"width": fmt.Sprintf("%dpx", rSize.Width),
-			"overflow": "hidden",
-			"border": fmt.Sprintf("%dpx solid %s", w.thick, w.color),
-			"transition": "height 0.1s, width 0.1s",
-			"boxSizing": "border-box",
-		},
+		styling,
 		"",
 		[]Html{
 			subHtml,

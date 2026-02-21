@@ -49,6 +49,29 @@ function connect(url) {
             const elt = document.querySelector(`#widget-${msg.target}`)
             elt.style.height = `${msg.height}px`
             elt.style.width = `${msg.width}px`
+        } else if (msg.type == "insert-child") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            const newElt = createWidget(msg.widget)
+            elt.insertBefore(newElt, elt.childNodes[msg.index])
+        } else if (msg.type == "append-child") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            const newElt = createWidget(msg.widget)
+            elt.appendChild(newElt)
+        } else if (msg.type == "delete-child") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            elt.removeChild(elt.childNodes[msg.index])
+        } else if (msg.type == "hide") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            if (elt.style.display !== "none") {
+                elt.setAttribute("data-display-save", elt.style.display)
+                elt.style.display = "none"
+            }
+        } else if (msg.type == "unhide") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            if (elt.style.display === "none" && elt.hasAttribute("data-display-save")) {
+                elt.style.display = elt.getAttribute("data-display-save")
+                elt.removeAttribute("data-display-save")
+            }
         } else {
             console.log(`Unknown message: ${evt.data}`)
         }
@@ -87,6 +110,11 @@ function sendToExene(message) {
 }
 
 function createWidget(w) {
+    if (!w.tag) {
+        // Skip empty widgets.
+        // (They come from doubly created realizers!)
+        return
+    }
     const elt = document.createElement(w.tag)
     w.attrs = w.attrs || {}
     w.style = w.style || {}

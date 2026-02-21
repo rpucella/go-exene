@@ -1,7 +1,6 @@
 package exene
 
 import (
-	"fmt"
 )
 
 type Button struct {
@@ -21,6 +20,9 @@ func NewButton(bounds Bounds, label string, act func()) *Button {
 
 
 func (w *Button) Realize(win Window, size Size, resizeChan chan Size) Html {
+	if w.win != nil {
+		return Html{}
+	}
 	w.win = win
 	rSize := ClampBounds(w.bounds, size)
 	eventChan := make(chan bool)
@@ -38,19 +40,13 @@ func (w *Button) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
+	styling := CreateDefaultStyle(rSize)
+	styling["cursor"] = "pointer"
 	return Html{
 		w.id.String(),
 		"button",
 		nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", rSize.Height),
-			"width": fmt.Sprintf("%dpx", rSize.Width),
-			"overflow": "hidden",
-			"border": "none",
-			"transition": "height 0.1s, width 0.1s",
-			"boxSizing": "border-box",
-			"cursor": "pointer",
-		},
+		styling,
 		w.label,
 		nil,
 		[]string{"click"},

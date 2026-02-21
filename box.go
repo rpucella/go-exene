@@ -1,180 +1,139 @@
 package exene
 
 import (
-	"fmt"
 	"math"
 )
 
 type Box struct {
-	bounds Bounds
 	id WId
 	box BoxEntry
 	win Window
+	insertChan chan Pair[int, BoxEntry]
+	dropChan chan int
 }
 
 func NewBox(box BoxEntry) *Box {
-	// Shortcut!!!
-	bounds := box.boxBoundsOf(noDir)
 	id := NewId()
-	return &Box{bounds, id, box, nil}
+	return &Box{id, box, nil, nil, nil}
 }
 
 func (w *Box) Realize(win Window, size Size, resizeChan chan Size) Html {
+	if w.win != nil {
+		return Html{}
+	}
 	w.win = win
-	html := w.box.boxRealize(win, size, noDir, resizeChan)
+	insertChan := make(chan Pair[int, BoxEntry])
+	w.insertChan = insertChan
+	dropChan := make(chan int)
+	w.dropChan = dropChan
+	html := w.box.boxRealize(win, size, dirNone, resizeChan, insertChan, dropChan)
 	return html
 }
 
 func (w *Box) BoundsOf() Bounds {
-	return w.bounds
+	return w.box.boxBoundsOf(dirNone)
+}
+
+func (w *Box) Insert(idx int, box BoxEntry) {
+	w.insertChan <- NewPair(idx, box)
+}
+
+func (w *Box) Delete(idx int) {
+	w.dropChan <- idx
 }
 
 
 type BoxEntry interface{
-	boxRealize(Window, Size, direction, chan Size) Html
+	boxRealize(Window, Size, direction, chan Size, chan Pair[int, BoxEntry], chan int) Html
 	boxBoundsOf(direction) Bounds
 }
 
-type BoxVtLeft struct {
-	Boxes []BoxEntry
-}
-
-type BoxVtCenter struct {
-	Boxes []BoxEntry
-}
-
-type BoxVtRight struct {
-	Boxes []BoxEntry
-}
-
-type BoxHzTop struct {
-	Boxes []BoxEntry
-}
-
-type BoxHzCenter struct {
-	Boxes []BoxEntry
-}
-
-type BoxHzBottom struct {
-	Boxes []BoxEntry
+type BoxList struct {
+	align alignment
+	dir direction
+	boxes []BoxEntry
 }
 
 type BoxWidget struct {
-	Widget Widget
+	widget Widget
 }
 
 type BoxGlue struct {
-	Dim Dim
+	dim Dim
 }
 
 type direction int
 
 const (
-	verticalDir direction = iota
-	horizontalDir
-	noDir
+	dirVertical direction = iota
+	dirHorizontal
+	dirNone
 )
 
-func (b BoxVtLeft) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
+func (d direction) String() string {
+	if d == dirVertical {
+		return "column"
+	} else {
+		// Default out to row, though dirNone should never be a flex box.
+		return "row"
+	} 
 }
 
-func (b BoxVtLeft) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
+type alignment int
+
+const (
+	alignStart alignment = iota
+	alignCenter 
+	alignEnd
+)
+
+func (n alignment) String() string {
+	if n == alignStart {
+		return "flex-start"
+	} else if n == alignCenter {
+		return "center"
+	} else {
+		return "flex-end"
+	}
 }
 
-func (b BoxVtCenter) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
+func NewVtLeft(boxes ...BoxEntry) BoxList {
+	return BoxList{alignStart, dirVertical, boxes}
 }
-
-func (b BoxVtCenter) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
-}
-
-func (b BoxVtRight) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, verticalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
-}
-
-func (b BoxVtRight) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, verticalDir)
-}
-
-func (b BoxHzTop) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-start", resizeChan)
-}
-
-func (b BoxHzTop) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxHzCenter) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "center", resizeChan)
-}
-
-func (b BoxHzCenter) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxHzBottom) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return layout(win, size, horizontalDir, b.boxBoundsOf(dir), b.Boxes, "flex-end", resizeChan)
-}
-
-func (b BoxHzBottom) boxBoundsOf(dir direction) Bounds {
-	return layoutBoundsOf(b.Boxes, horizontalDir)
-}
-
-func (b BoxWidget) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	return b.Widget.Realize(win, size, resizeChan)
-}
-
-func (b BoxWidget) boxBoundsOf(dir direction) Bounds {
-	return b.Widget.BoundsOf()
-}
-
-func (b BoxGlue) boxRealize(win Window, size Size, dir direction, resizeChan chan Size) Html {
-	id := NewId()
-	bounds := b.boxBoundsOf(dir)
-	boxSize := ClampBounds(bounds, size)
-	go func() {
-		for {
-			select {
-			case newSize := <- resizeChan:
-				rSize := ClampBounds(bounds, newSize)
-				win.UpdateSize(id, rSize)
-			}
-		}
-	}()
 	
-	return Html{
-		id.String(),
-		"div",
-	    nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", boxSize.Height),
-			"width": fmt.Sprintf("%dpx", boxSize.Width),
-			"overflow": "hidden",
-			"transition": "height 0.1s, width 0.1s",
-			"boxSizing": "border-box",
-		},
-		"",
-		nil,
-	    nil,
-	}
+func NewVtCenter(boxes ...BoxEntry) BoxList {
+	return BoxList{alignCenter, dirVertical, boxes}
+}
+	
+func NewVtRight(boxes ...BoxEntry) BoxList {
+	return BoxList{alignEnd, dirVertical, boxes}
+}
+	
+func NewHzTop(boxes ...BoxEntry) BoxList {
+	return BoxList{alignStart, dirHorizontal, boxes}
+}
+	
+func NewHzCenter(boxes ...BoxEntry) BoxList {
+	return BoxList{alignCenter, dirHorizontal, boxes}
+}
+	
+func NewHzBottom(boxes ...BoxEntry) BoxList {
+	return BoxList{alignEnd, dirHorizontal, boxes}
 }
 
-func (b BoxGlue) boxBoundsOf(dir direction) Bounds {
-	var width Dim
-	var height Dim
-	if dir == verticalDir {
-		height = b.Dim
-	}
-	if dir == horizontalDir {
-		width = b.Dim
-	}
-	return Bounds{width, height}
+func NewWBox(widget Widget) BoxWidget {
+	return BoxWidget{widget}
 }
 
-func layout(win Window, size Size, dir direction, bounds Bounds, boxes []BoxEntry, align string, resizeChan chan Size) Html {
+func NewGlue(d Dim) BoxGlue {
+	return BoxGlue{d}
+}
+	
+func (b BoxList) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+	dir := b.dir
+	align := b.align
+	boxes := b.boxes
+	bounds := b.boxBoundsOf(parentDir)
 	id := NewId()
 	subHtmls := make([]Html, len(boxes))
 	rSize := ClampBounds(bounds, size)
@@ -182,52 +141,161 @@ func layout(win Window, size Size, dir direction, bounds Bounds, boxes []BoxEntr
 	subResizeChans := make([]chan Size, len(boxes))
 	for i, b := range boxes {
 		subResizeChans[i] = make(chan Size)
-		subHtmls[i] = b.boxRealize(win, sizes[i], dir, subResizeChans[i])
+		subHtmls[i] = b.boxRealize(win, sizes[i], dir, subResizeChans[i], nil, nil)
 	}
 	go func() {
+		currSize := size
+		currentBoxes := boxes  // Shared.
+		currentResizeChans := subResizeChans
+		// probably need to rethink the whole thing.
+		// instead of thread per box, maybe I can use the fact that I have IDs for all the subwidgets
+		// and only track sizes for them?
 		for {
 			select {
 			case newSize := <- resizeChan:
+				currSize = newSize
 				rSize := ClampBounds(bounds, newSize)
-				subSizes := calculateSizes(boxes, dir, rSize)
+				subSizes := calculateSizes(currentBoxes, dir, rSize)
 				for i, ch := range subResizeChans {
 					ch <- subSizes[i]
+				}
+				win.UpdateSize(id, rSize)
+
+			case pair := <- insertChan:
+				index, box := pair.Get()
+				subResizeChan := make(chan Size)
+				currentBoxes = insertInto(currentBoxes, index, box)
+				currentResizeChans = insertInto(currentResizeChans, index, subResizeChan)
+				bounds := b.boxBoundsOf(parentDir)
+				rSize := ClampBounds(bounds, currSize)
+				sizes := calculateSizes(currentBoxes, dir, rSize)
+				subHtml := box.boxRealize(win, sizes[index], dir, subResizeChan, nil, nil)
+				if index == len(currentBoxes) - 1 {
+					win.AppendChild(id, subHtml)
+				} else {
+					win.InsertChild(id, index, subHtml)
+				}
+				for i, ch := range currentResizeChans {
+					if i != index {
+						// Skip the one we just inserted!
+						ch <- sizes[i]
+					}
+				}
+				// That's not enough:
+				win.UpdateSize(id, rSize)
+				// Resizing due to internal changes need to propagate up the hierarchy!
+				// You don't get that on resize, obviously, because there everybody gets the resize require
+				// But this is a resize request that's propagating up!
+
+			case index := <- dropChan:
+				currentBoxes = deleteFrom(currentBoxes, index)
+				currentResizeChans = deleteFrom(currentResizeChans, index)
+				bounds := b.boxBoundsOf(parentDir)
+				rSize := ClampBounds(bounds, currSize)
+				sizes := calculateSizes(currentBoxes, dir, rSize)
+				win.DeleteChild(id, index)
+				// Need to destroy the deleted box!
+				for i, ch := range currentResizeChans {
+					ch <- sizes[i]
 				}
 				win.UpdateSize(id, rSize)
 			}
 		}
 	}()
-	flexDirection := ""
-	if dir == verticalDir {
-		flexDirection = "column"
-	}
-	if dir == horizontalDir {
-		flexDirection = "row"
-	}
+	styling := CreateDefaultStyle(rSize)
+	styling["display"] = "flex"
+	styling["flex-direction"] = dir.String()
+	styling["align-items"] = align.String()
 	return Html{
 		id.String(),
 		"div",
 	    nil,
-		map[string]string{
-			"width": fmt.Sprintf("%dpx", rSize.Width),
-			"height": fmt.Sprintf("%dpx", rSize.Height),
-			"overflow": "hidden",
-			"display": "flex",
-			"flex-direction": flexDirection,
-			"align-items": align,
-			"transition": "height 0.1s, width 0.1s",
-			"boxSizing": "border-box",
-		},
+		styling,
 		"",
 		subHtmls,
 	    nil,
 	}
 }
 
+func (b BoxList) boxBoundsOf(parentDir direction) Bounds {
+	boxes := b.boxes
+	dir := b.dir
+	width := FixDim(0)
+	height := FixDim(0)
+	for _, b := range boxes {
+		bb := b.boxBoundsOf(dir)
+		if dir == dirVertical {
+			width = MaxDim(width, bb.Width)
+			height = AddDim(height, bb.Height)
+		}
+		if dir == dirHorizontal {
+			width = AddDim(width, bb.Width)
+			height = MaxDim(height, bb.Height)
+		}
+	}
+	return Bounds{width, height}
+}
+
+func (b BoxWidget) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+	go func(){
+		for {
+			select{
+				case <- insertChan:
+				case <- dropChan:
+			}
+		}
+	}()
+	return b.widget.Realize(win, size, resizeChan)
+}
+
+func (b BoxWidget) boxBoundsOf(parentDir direction) Bounds {
+	return b.widget.BoundsOf()
+}
+
+func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+	id := NewId()
+	bounds := b.boxBoundsOf(parentDir)
+	boxSize := ClampBounds(bounds, size)
+	go func() {
+		for {
+			select {
+			case newSize := <- resizeChan:
+				rSize := ClampBounds(bounds, newSize)
+				win.UpdateSize(id, rSize)
+
+			case <- insertChan:
+			case <- dropChan:
+			}
+		}
+	}()
+	styling := CreateDefaultStyle(boxSize)
+	return Html{
+		id.String(),
+		"div",
+	    nil,
+		styling,
+		"",
+		nil,
+	    nil,
+	}
+}
+
+func (b BoxGlue) boxBoundsOf(parentDir direction) Bounds {
+	var width Dim
+	var height Dim
+	if parentDir == dirVertical {
+		height = b.dim
+	}
+	if parentDir == dirHorizontal {
+		width = b.dim
+	}
+	return Bounds{width, height}
+}
+
 func calculateSizes(boxes []BoxEntry, dir direction, size Size) []Size {
 	var lengths []int
 	result := make([]Size, len(boxes))
-	if dir == verticalDir {
+	if dir == dirVertical {
 		dims := make([]Dim, len(boxes))
 		for i, b := range boxes {
 			dims[i] = b.boxBoundsOf(dir).Height
@@ -237,7 +305,7 @@ func calculateSizes(boxes []BoxEntry, dir direction, size Size) []Size {
 			result[i] = Size{size.Width, n}
 		}
 	}
-	if dir == horizontalDir {
+	if dir == dirHorizontal {
 		dims := make([]Dim, len(boxes))
 		for i, b := range boxes {
 			dims[i] = b.boxBoundsOf(dir).Width
@@ -337,21 +405,16 @@ func calculatePartition(bnds []Dim, length int) []int {
 	return result
 }
 
-func layoutBoundsOf(boxes []BoxEntry, dir direction) Bounds {
-	width := FixDim(0)
-	height := FixDim(0)
-	for _, b := range boxes {
-		if dir == verticalDir {
-			bb := b.boxBoundsOf(dir)
-			width = MaxDim(width, bb.Width)
-			height = AddDim(height, bb.Height)
-		}
-		if dir == horizontalDir {
-			bb := b.boxBoundsOf(dir)
-			width = AddDim(width, bb.Width)
-			height = MaxDim(height, bb.Height)
-		}
+func insertInto[T any](slice []T, index int, item T) []T {
+	if index < len(slice) {
+		return append(slice[:index], append([]T{item}, slice[index:]...)...)
 	}
-	return Bounds{width, height}
+	return append(slice, item)
 }
 
+func deleteFrom[T any](slice []T, index int) []T {
+	if index < len(slice) {
+		return append(slice[:index], slice[index + 1:]...)
+	}
+	return slice
+}

@@ -21,59 +21,108 @@ func main() {
 
 func MainWidget() ex.Widget {
 	count := 0
-	title := ex.NewText(
-		ex.Bounds{ex.Dim{400, 400, 400}, ex.FixDim(50)},
+	dark := ex.RgbHex("333333")
+	light := ex.RgbHex("eeeeee")
+	title := ex.NewLabel(
+		ex.FixBounds(400, 50),
 		"Counter Demo",
-		ex.WithTextAlign("center"),
+		ex.WithAlign("center"),
 		ex.WithFontSize(36),
 	)
-	label := ex.NewText(
+	label := ex.NewLabel(
 		ex.FixBounds(400, 40),
 		"Count = 0",
-		ex.WithTextAlign("center"),
+		ex.WithAlign("center"),
 	)
 	setLabel := func(newCount int) {
 		count = newCount
 		label.UpdateText(fmt.Sprintf("Count = %d", count))
 	}
-	increment := ex.NewButton(
-		ex.FixBounds(120, 40),
-		"Increment",
-		func() { setLabel(count + 1) },
+	increment := ex.NewFrame(
+		2,
+		dark,
+		ex.NewButton(
+			ex.FixBounds(120, 40),
+			"Increment",
+			func() { setLabel(count + 1) },
+		),
 	)
-	reset := ex.NewButton(
-		ex.FixBounds(120, 40),
-		"Reset",
-		func() { setLabel(0) },
+	reset := ex.NewFrame(
+		2,
+		dark,
+		ex.NewButton(
+			ex.FixBounds(120, 40),
+			"Reset",
+			func() { setLabel(0) },
+		),
 	)
-	content := ex.NewBox(
-		ex.BoxVtCenter{
-			[]ex.BoxEntry{
-				ex.BoxWidget{title},
-				ex.BoxGlue{ex.Dim{20, 20, 50}},
-				ex.BoxHzCenter{
-					[]ex.BoxEntry{
-						ex.BoxGlue{ex.Dim{0, 0, 100}},
-						ex.BoxWidget{increment},
-						ex.BoxGlue{ex.Dim{20, 20, 100}},
-						ex.BoxWidget{reset},
-						ex.BoxGlue{ex.Dim{0, 0, 100}},
-					},
-				},
-				ex.BoxGlue{ex.Dim{20, 20, 50}},
-				ex.BoxWidget{label},
+	var content *ex.Box
+	extraCount := 0
+	addExtra := ex.NewFrame(
+		2,
+		dark,
+		ex.NewButton(
+			ex.FixBounds(120, 40),
+			"Add extra",
+			func() {
+				extraCount += 1
+				label := ex.NewLabel(
+					ex.FixBounds(200, 20),
+					fmt.Sprintf("Extra #%d", extraCount),
+					ex.WithAlign("center"),
+				)
+				content.Insert(4, ex.NewWBox(label))
 			},
-		},
+		),
+	)
+	dropExtra := ex.NewFrame(
+		2,
+		dark,
+		ex.NewButton(
+			ex.FixBounds(120, 40),
+			"Drop extra",
+			func() {
+				if extraCount > 0 {
+					content.Delete(4)
+					extraCount -= 1
+				}
+			},
+		),
+	)
+	content = ex.NewBox(
+		ex.NewVtCenter(
+			ex.NewWBox(title),
+			ex.NewGlue(ex.NewDim(20, 20, 50)),
+			ex.NewHzCenter(
+				ex.NewGlue(ex.NewDim(0, 0, 100)),
+				ex.NewWBox(increment),
+				ex.NewGlue(ex.NewDim(20, 20, 100)),
+				ex.NewWBox(reset),
+				ex.NewGlue(ex.NewDim(20, 20, 100)),
+				ex.NewWBox(addExtra),
+				ex.NewGlue(ex.NewDim(20, 20, 100)),
+				ex.NewWBox(dropExtra),
+				ex.NewGlue(ex.NewDim(0, 0, 100)),
+			),
+			ex.NewGlue(ex.NewDim(20, 20, 50)),
+			ex.NewWBox(label),
+		),
 	)
 	main := ex.Center(
-		ex.NewFrame(
-			5,
-			ex.RgbHex("808080"),
-			ex.NewPadding(
-				20, 
-				content,
+		ex.NewBackground(
+			light, 
+			dark,
+			ex.NewFrame(
+				3,
+				dark,
+				ex.NewFrame(
+					20,
+					ex.Transparent,
+					content,
+				),
 			),
 		),
 	)
 	return main
 }
+

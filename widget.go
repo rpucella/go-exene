@@ -18,11 +18,32 @@ type Bounds struct {
 type Color string
 
 func Rgb(r, g, b int) Color {
-	return Color("??")
+	return Color("red")   // :)
 }
 
 func RgbHex(s string) Color {
 	return Color(fmt.Sprintf("#%s", s))
+}
+
+const Transparent Color = "transparent"
+
+func (c Color) String() string {
+	return string(c)
+}
+
+
+type Shell struct {
+	root bool
+	widget Widget
+}
+
+func NewShell(w Widget) Shell {
+	return Shell{false, w}
+}
+
+func (sh Shell) Init(win Window, size Size, resizeChan chan Size) Html {
+	// Ideally, this should return (Html, error) to account for realization failing.
+	return sh.widget.Realize(win, size, resizeChan)
 }
 
 type Style struct {
@@ -30,35 +51,41 @@ type Style struct {
 	FontSize string
 	FontStyle string
 	FontWeight string
-	Color string
-	BackgroundColor string
-	TextAlign string
+	Align string
 }
 
-func (s *Style) mapOf() map[string]string {
-	style := make(map[string]string)
+func CreateDefaultStyle(size Size) map[string]string {
+	styling := make(map[string]string)
+	styling["display"] = "block"
+	styling["height"] = fmt.Sprintf("%dpx", size.Height)
+	styling["width"] = fmt.Sprintf("%dpx", size.Width)
+	styling["transition"] = "height 0.1s, width 0.1s"
+	styling["overflow"] = "hidden"
+	styling["boxSizing"] = "border-box"
+	styling["color"] = "currentColor"
+	styling["background-color"] = "transparent"
+	styling["border"] = "none"
+	styling["cursor"] = "default"
+	styling["flex"] = "none"
+	return styling
+}
+
+func (s *Style) ExtendStyle(styling map[string]string) {
 	if s.FontFamily != "" {
-		style["fontFamily"] = s.FontFamily
+		styling["fontFamily"] = s.FontFamily
 	}
 	if s.FontSize != "" {
-		style["fontSize"] = s.FontSize
+		styling["fontSize"] = s.FontSize
 	}
 	if s.FontStyle != "" {
-		style["fontStyle"] = s.FontStyle
+		styling["fontStyle"] = s.FontStyle
 	}
 	if s.FontWeight != "" {
-		style["fontWeight"] = s.FontWeight
+		styling["fontWeight"] = s.FontWeight
 	}
-	if s.Color != "" {
-		style["color"] = s.Color
+	if s.Align != "" {
+		styling["textAlign"] = s.Align
 	}
-	if s.BackgroundColor != "" {
-		style["backgroundColor"] = s.BackgroundColor
-	}
-	if s.TextAlign != "" {
-		style["textAlign"] = s.TextAlign
-	}
-	return style
 }
 
 type StyleOption func(*Style)
@@ -87,22 +114,20 @@ func WithFontWeight(v string) StyleOption {
 	}
 }
 
-func WithColor(v Color) StyleOption {
+func WithAlign(v string) StyleOption {
 	return func(s *Style) {
-		s.Color = string(v)
+		s.Align = v
 	}
 }
 
-func WithBackgroundColor(v string) StyleOption {
-	return func(s *Style) {
-		s.BackgroundColor = v
-	}
+
+
+func NewDim(v1, v2, v3 int) Dim {
+	return Dim{v1, v2, v3}
 }
 
-func WithTextAlign(v string) StyleOption {
-	return func(s *Style) {
-		s.TextAlign = v
-	}
+func ExpDim(v1, v2 int) Dim {
+	return Dim{v1, v2, -1}
 }
 
 func FixDim(v int) Dim {
@@ -160,6 +185,10 @@ func TransDim(d1 Dim, v int) Dim {
 	return Dim{newMin, newNat, newMax}
 }
 
+func NewBounds(d1 Dim, d2 Dim) Bounds {
+	return Bounds{d1, d2}
+}
+
 func FixBounds(w int, h int) Bounds {
 	return Bounds{FixDim(w), FixDim(h)}
 }
@@ -202,17 +231,3 @@ func NewId() WId {
 func (id WId) String() string {
 	return string(id)
 }
-
-type Shell struct {
-	root bool
-	widget Widget
-}
-
-func NewShell(w Widget) Shell {
-	return Shell{false, w}
-}
-
-func (sh Shell) Init(win Window, size Size, resizeChan chan Size) Html {
-	return sh.widget.Realize(win, size, resizeChan)
-}
-
