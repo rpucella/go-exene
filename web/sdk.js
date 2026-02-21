@@ -26,6 +26,21 @@ function connect(url) {
     socket.addEventListener('close', (evt) => {
         console.log(`Websocket connection closed: ${evt.code} ${evt.reason}`)
         _ready = false
+        const elt = document.createElement("div")
+        elt.style.position = "absolute"
+        elt.style.left = "0"
+        elt.style.right = "0"
+        elt.style.top = "0"
+        elt.style.bottom = "0"
+        elt.style.zIndex = "100"
+        elt.style.opacity = "0.8"
+        elt.style.padding = "100px"
+        elt.style.textAlign = "center"
+        elt.style.fontSize = "48px"
+        elt.style.color = "white"
+        elt.style.backgroundColor = "black"
+        elt.innerText = "Connection lost"
+        document.body.appendChild(elt)
     })
     socket.addEventListener('message', (evt) => {
         const msg = JSON.parse(evt.data)
