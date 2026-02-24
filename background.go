@@ -1,7 +1,6 @@
 package exene
 
 import (
-	"fmt"
 )
 
 type Background struct {
@@ -18,9 +17,9 @@ func NewBackground(bgColor Color, fgColor Color, widget Widget) *Background {
 	return frame
 }
 
-func (w *Background) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Background) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	subResizeChan := make(chan Size)
@@ -36,25 +35,12 @@ func (w *Background) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
-	return Html{
-		w.id.String(),
-		"div",
-		nil,
-		map[string]string{
-			"height": fmt.Sprintf("%dpx", rSize.Height),
-			"width": fmt.Sprintf("%dpx", rSize.Width),
-			"backgroundColor": w.bgColor,
-			"color": w.fgColor,
-			"overflow": "hidden",
-			"transition": "height 0.1s, width 0.1s",
-			"boxSizing": "border-box",
-		},
-		"",
-		[]Html{
-			subHtml,
-		},
-		nil,
-	}
+	return NewHtml("div").
+		Id(w.id.String()).
+		Styles(DefaultStyle(rSize)).
+		Style("backgroundColor", w.bgColor).
+		Style("color", w.fgColor).
+		Append(subHtml)
 }
 
 func (w *Background) BoundsOf() Bounds {

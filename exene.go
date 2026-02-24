@@ -131,7 +131,7 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		log.Printf("viewport size %d x %d\n", width, height)
 		size := Size{width, height}
 		html := sh.Init(window, size, resizeChan)
-		outgoing2 := struct{Type string `json:"type"`; Widget Html `json:"widget"`}{"widget", html}
+		outgoing2 := struct{Type string `json:"type"`; Widget *Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
 		if err != nil {
 			log.Println("marshal:", err)
@@ -189,8 +189,8 @@ type Window interface {
 	// Having widget IDs in the interface is slightly uncouth.
 	UpdateSize(WId, Size)
 	UpdateText(WId, string)
-	InsertChild(WId, int, Html)
-	AppendChild(WId, Html)
+	InsertChild(WId, int, *Html)
+	AppendChild(WId, *Html)
 	DeleteChild(WId, int)
 	HideChild(WId, int)
 	UnhideChild(WId, int)
@@ -214,11 +214,11 @@ func (hw *HtmlWindow) RegisterEventChan(wid WId, eventChan chan bool) {
 	hw.dispatchMap[wid.String()] = eventChan
 }
 
-func (hw *HtmlWindow) InsertChild(wid WId, index int, widget Html) {
+func (hw *HtmlWindow) InsertChild(wid WId, index int, widget *Html) {
 	hw.updateChan <- map[string]any{"target": wid.String(), "type": "insert-child", "index": index, "widget": widget}
 }
 
-func (hw *HtmlWindow) AppendChild(wid WId, widget Html) {
+func (hw *HtmlWindow) AppendChild(wid WId, widget *Html) {
 	hw.updateChan <- map[string]any{"target": wid.String(), "type": "append-child", "widget": widget}
 }
 

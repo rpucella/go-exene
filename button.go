@@ -19,9 +19,9 @@ func NewButton(bounds Bounds, label string, act func()) *Button {
 }
 
 
-func (w *Button) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Button) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	rSize := ClampBounds(w.bounds, size)
@@ -40,17 +40,12 @@ func (w *Button) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(rSize)
-	styling["cursor"] = "pointer"
-	return Html{
-		w.id.String(),
-		"button",
-		nil,
-		styling,
-		w.label,
-		nil,
-		[]string{"click"},
-	}
+	return NewHtml("button").
+		Id(w.id.String()).
+		Text(w.label).
+		Styles(DefaultStyle(rSize)).
+		Style("cursor", "pointer").
+		Event("click")
 }
 
 func (w *Button) BoundsOf() Bounds {

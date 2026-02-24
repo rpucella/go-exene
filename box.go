@@ -17,9 +17,9 @@ func NewBox(box BoxEntry) *Box {
 	return &Box{id, box, nil, nil, nil}
 }
 
-func (w *Box) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Box) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	insertChan := make(chan Pair[int, BoxEntry])
@@ -44,7 +44,7 @@ func (w *Box) Delete(idx int) {
 
 
 type BoxEntry interface{
-	boxRealize(Window, Size, direction, chan Size, chan Pair[int, BoxEntry], chan int) Html
+	boxRealize(Window, Size, direction, chan Size, chan Pair[int, BoxEntry], chan int) *Html
 	boxBoundsOf(direction) Bounds
 }
 
@@ -129,13 +129,13 @@ func NewGlue(d Dim) BoxGlue {
 	return BoxGlue{d}
 }
 	
-func (b BoxList) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+func (b BoxList) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
 	dir := b.dir
 	align := b.align
 	boxes := b.boxes
 	bounds := b.boxBoundsOf(parentDir)
 	id := NewId()
-	subHtmls := make([]Html, len(boxes))
+	subHtmls := make([]*Html, len(boxes))
 	rSize := ClampBounds(bounds, size)
 	var sizes = calculateSizes(boxes, dir, rSize)
 	subResizeChans := make([]chan Size, len(boxes))
@@ -202,19 +202,13 @@ func (b BoxList) boxRealize(win Window, size Size, parentDir direction, resizeCh
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(rSize)
-	styling["display"] = "flex"
-	styling["flex-direction"] = dir.String()
-	styling["align-items"] = align.String()
-	return Html{
-		id.String(),
-		"div",
-	    nil,
-		styling,
-		"",
-		subHtmls,
-	    nil,
-	}
+	return NewHtml("div").
+		Id(id.String()).
+		Styles(DefaultStyle(rSize)).
+		Style("display", "flex").
+		Style("flexDirection", dir.String()).
+		Style("alignItems", align.String()).
+		AppendAll(subHtmls)
 }
 
 func (b BoxList) boxBoundsOf(parentDir direction) Bounds {
@@ -236,7 +230,7 @@ func (b BoxList) boxBoundsOf(parentDir direction) Bounds {
 	return Bounds{width, height}
 }
 
-func (b BoxWidget) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+func (b BoxWidget) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
 	go func(){
 		for {
 			select{
@@ -252,7 +246,7 @@ func (b BoxWidget) boxBoundsOf(parentDir direction) Bounds {
 	return b.widget.BoundsOf()
 }
 
-func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) Html {
+func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, resizeChan chan Size, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
 	id := NewId()
 	bounds := b.boxBoundsOf(parentDir)
 	boxSize := ClampBounds(bounds, size)
@@ -268,16 +262,9 @@ func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, resizeCh
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(boxSize)
-	return Html{
-		id.String(),
-		"div",
-	    nil,
-		styling,
-		"",
-		nil,
-	    nil,
-	}
+	return NewHtml("div").
+		Id(id.String()).
+		Styles(DefaultStyle(boxSize))
 }
 
 func (b BoxGlue) boxBoundsOf(parentDir direction) Bounds {

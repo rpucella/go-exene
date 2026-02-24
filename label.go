@@ -25,9 +25,9 @@ func NewLabel(bounds Bounds, text string, styles ...StyleOption) *Label {
 }
 
 
-func (w *Label) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Label) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	labelChan := make(chan string)	
@@ -45,17 +45,11 @@ func (w *Label) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(rSize)
-	w.style.ExtendStyle(styling)
-	return Html{
-		w.id.String(),
-		"div",
-		nil,
-		styling,
-		w.text,
-		nil,
-		nil,
-	}
+	return NewHtml("div").
+		Id(w.id.String()).
+		Styles(DefaultStyle(rSize)).
+		Styles(w.style.AsMap()).
+		Text(w.text)
 }
 
 func (w *Label) BoundsOf() Bounds {

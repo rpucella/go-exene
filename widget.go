@@ -41,7 +41,7 @@ func NewShell(w Widget) Shell {
 	return Shell{false, w}
 }
 
-func (sh Shell) Init(win Window, size Size, resizeChan chan Size) Html {
+func (sh Shell) Init(win Window, size Size, resizeChan chan Size) *Html {
 	// Ideally, this should return (Html, error) to account for realization failing.
 	return sh.widget.Realize(win, size, resizeChan)
 }
@@ -54,7 +54,7 @@ type Style struct {
 	Align string
 }
 
-func CreateDefaultStyle(size Size) map[string]string {
+func DefaultStyle(size Size) map[string]string {
 	styling := make(map[string]string)
 	styling["display"] = "block"
 	styling["height"] = fmt.Sprintf("%dpx", size.Height)
@@ -86,6 +86,12 @@ func (s *Style) ExtendStyle(styling map[string]string) {
 	if s.Align != "" {
 		styling["textAlign"] = s.Align
 	}
+}
+
+func (s *Style) AsMap() map[string]string {
+	styling := make(map[string]string)
+	s.ExtendStyle(styling)
+	return styling
 }
 
 type StyleOption func(*Style)
@@ -201,20 +207,10 @@ func ClampBounds(b Bounds, size Size) Size {
 	return Size{ClampDim(b.Width, size.Width), ClampDim(b.Height, size.Height)}
 }
 
-type Html struct {
-	Id string `json:"id"`
-	Tag string `json:"tag"`
-	Attrs map[string]string `json:"attrs"`
-	Style map[string]string `json:"style"`
-	Text string `json:"text"`
-	Children []Html `json:"children"`
-	Events []string `json:"events"`
-}
-
 type Widget interface {
 	BoundsOf() Bounds
 	// May also want to pass the environment?
-	Realize(Window, Size, chan Size) Html
+	Realize(Window, Size, chan Size) *Html
 }
 
 

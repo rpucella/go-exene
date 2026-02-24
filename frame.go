@@ -18,9 +18,9 @@ func NewFrame(thick int, color Color, widget Widget) *Frame {
 	return frame
 }
 
-func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	subResizeChan := make(chan Size)
@@ -38,19 +38,11 @@ func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(rSize)
-	styling["border"] = fmt.Sprintf("%dpx solid %s", w.thick, w.color)
-	return Html{
-		w.id.String(),
-		"div",
-		nil,
-		styling,
-		"",
-		[]Html{
-			subHtml,
-		},
-		nil,
-	}
+	return NewHtml("div").
+		Id(w.id.String()).
+		Styles(DefaultStyle(rSize)).
+		Style("border", fmt.Sprintf("%dpx solid %s", w.thick, w.color)).
+		Append(subHtml)
 }
 
 func (w *Frame) BoundsOf() Bounds {

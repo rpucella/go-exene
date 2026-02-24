@@ -18,9 +18,9 @@ func NewPile(widgets ...Widget) *Pile {
 	return &Pile{id: id, widgets: widgets}
 }
 
-func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) Html {
+func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	if w.win != nil {
-		return Html{}
+		return nil
 	}
 	w.win = win
 	insertChan := make(chan Pair[int, Widget])
@@ -31,19 +31,17 @@ func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) Html {
 	w.activateChan = activateChan
 	bounds := w.BoundsOf()
 	rSize := ClampBounds(bounds, size)
-	subHtmls := make([]Html, len(w.widgets))
+	subHtmls := make([]*Html, len(w.widgets))
 	subResizeChans := make([]chan Size, len(w.widgets))
 	for i, sw := range w.widgets {
 		subResizeChans[i] = make(chan Size)
 		subHtmls[i] = sw.Realize(win, size, subResizeChans[i])
 		if i > 0 {
 			// Mimic how we hide via the SDK.
-			savedDisplay := subHtmls[i].Style["display"]
-			subHtmls[i].Style["display"] = "none"
-			if subHtmls[i].Attrs == nil {
-				subHtmls[i].Attrs = make(map[string]string)
-			}
-			subHtmls[i].Attrs["data-display-save"] = savedDisplay
+			savedDisplay := subHtmls[i].GetStyle("display")
+			subHtmls[i] = subHtmls[i].
+				Style("display", "none").
+				Attr("data-display-save", savedDisplay)
 		}
 	}
 	go func() {
@@ -109,16 +107,10 @@ func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) Html {
 			}
 		}
 	}()
-	styling := CreateDefaultStyle(rSize)
-	return Html{
-		w.id.String(),
-		"div",
-	    nil,
-		styling,
-		"",
-		subHtmls,
-	    nil,
-	}
+	return NewHtml("div").
+		Id(w.id.String()).
+		Styles(DefaultStyle(rSize)).
+		AppendAll(subHtmls)
 }
 
 func (w *Pile) BoundsOf() Bounds {
