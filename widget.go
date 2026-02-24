@@ -41,9 +41,15 @@ func NewShell(w Widget) Shell {
 	return Shell{false, w}
 }
 
-func (sh Shell) Init(win Window, size Size, resizeChan chan Size) *Html {
+type Environment struct {
+	ResizeChan chan Size
+	DestroyChan chan bool
+	RequestChan chan Pair[string, any]
+}
+
+func (sh Shell) Init(win Window, size Size, env Environment) *Html {
 	// Ideally, this should return (Html, error) to account for realization failing.
-	return sh.widget.Realize(win, size, resizeChan)
+	return sh.widget.Realize(win,  size, env)
 }
 
 type Style struct {
@@ -210,7 +216,7 @@ func ClampBounds(b Bounds, size Size) Size {
 type Widget interface {
 	BoundsOf() Bounds
 	// May also want to pass the environment?
-	Realize(Window, Size, chan Size) *Html
+	Realize(Window, Size, Environment) *Html
 }
 
 

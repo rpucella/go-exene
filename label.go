@@ -25,7 +25,7 @@ func NewLabel(bounds Bounds, text string, styles ...StyleOption) *Label {
 }
 
 
-func (w *Label) Realize(win Window, size Size, resizeChan chan Size) *Html {
+func (w *Label) Realize(win Window, size Size, env Environment) *Html {
 	if w.win != nil {
 		return nil
 	}
@@ -36,7 +36,7 @@ func (w *Label) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	go func() {
 		for {
 			select {
-			case newSize := <- resizeChan:
+			case newSize := <- env.ResizeChan:
 				rSize := ClampBounds(w.bounds, newSize)
 				win.UpdateSize(w.id, rSize)
 

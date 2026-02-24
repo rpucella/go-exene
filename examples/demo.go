@@ -149,6 +149,24 @@ func MainWidget() ex.Widget {
 			ex.NewWBox(panes),
 		),
 	)
+	navigation := ex.NewBackground(
+		dark,
+		light,
+		ex.NewBox(ex.NewVtCenter(
+			ex.NewGlue(ex.FixDim(24)),
+			ex.NewWBox(ex.NewLabel(
+				ex.NewBounds(
+					ex.NewDim(200, 500, -1),
+					ex.FixDim(40),
+				),
+				"Go-eXene Demo",
+				ex.WithAlign("center"),
+				ex.WithFontSize(36),
+			)),
+			ex.NewGlue(ex.FixDim(24)),
+		)),
+	)
+	/*
 	main := ex.Center(
 		ex.NewBackground(
 			light, 
@@ -162,6 +180,28 @@ func MainWidget() ex.Widget {
 					content,
 				),
 			),
+		),
+	)*/
+	main := ex.NewBox(
+		ex.NewVtCenter(
+			ex.NewWBox(navigation),
+			ex.NewGlue(ex.NewDim(60, 60, -1)),
+			ex.NewWBox(
+				ex.NewBackground(
+					light, 
+					dark,
+					ex.NewFrame(
+						3,
+						dark,
+						ex.NewFrame(
+							20,
+							ex.Transparent,
+							content,
+						),
+					),
+				),
+			),
+			ex.NewGlue(ex.NewDim(60, 60, -1)),
 		),
 	)
 	return main

@@ -17,18 +17,19 @@ func NewBackground(bgColor Color, fgColor Color, widget Widget) *Background {
 	return frame
 }
 
-func (w *Background) Realize(win Window, size Size, resizeChan chan Size) *Html {
+func (w *Background) Realize(win Window, size Size, env Environment) *Html {
 	if w.win != nil {
 		return nil
 	}
 	w.win = win
 	subResizeChan := make(chan Size)
+	subEnv := Environment{subResizeChan, nil, nil}
 	rSize := ClampBounds(w.BoundsOf(), size)
-	subHtml := w.widget.Realize(win, rSize, subResizeChan)
+	subHtml := w.widget.Realize(win, rSize, subEnv)
 	go func() {
 		for {
 			select {
-			case newSize := <- resizeChan:
+			case newSize := <- env.ResizeChan:
 				rSize := ClampBounds(w.BoundsOf(), newSize)
 				subResizeChan <- rSize
 				win.UpdateSize(w.id, rSize)

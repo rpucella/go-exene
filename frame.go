@@ -18,7 +18,7 @@ func NewFrame(thick int, color Color, widget Widget) *Frame {
 	return frame
 }
 
-func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) *Html {
+func (w *Frame) Realize(win Window, size Size, env Environment) *Html {
 	if w.win != nil {
 		return nil
 	}
@@ -26,11 +26,12 @@ func (w *Frame) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	subResizeChan := make(chan Size)
 	rSize := ClampBounds(w.BoundsOf(), size)
 	subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
-	subHtml := w.widget.Realize(win, subSize, subResizeChan)
+	subEnv := Environment{subResizeChan, nil, nil}
+	subHtml := w.widget.Realize(win, subSize, subEnv)
 	go func() {
 		for {
 			select {
-			case newSize := <- resizeChan:
+			case newSize := <- env.ResizeChan:
 				rSize := ClampBounds(w.BoundsOf(), newSize)
 				subSize := AddSize(rSize, Size{-2 * w.thick, -2 * w.thick})
 				subResizeChan <- subSize

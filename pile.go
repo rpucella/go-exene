@@ -18,7 +18,7 @@ func NewPile(widgets ...Widget) *Pile {
 	return &Pile{id: id, widgets: widgets}
 }
 
-func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) *Html {
+func (w *Pile) Realize(win Window, size Size, env Environment) *Html {
 	if w.win != nil {
 		return nil
 	}
@@ -35,7 +35,8 @@ func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) *Html {
 	subResizeChans := make([]chan Size, len(w.widgets))
 	for i, sw := range w.widgets {
 		subResizeChans[i] = make(chan Size)
-		subHtmls[i] = sw.Realize(win, size, subResizeChans[i])
+		subEnv := Environment{subResizeChans[i], nil, nil}
+		subHtmls[i] = sw.Realize(win, size, subEnv)
 		if i > 0 {
 			// Mimic how we hide via the SDK.
 			savedDisplay := subHtmls[i].GetStyle("display")
@@ -52,7 +53,7 @@ func (w *Pile) Realize(win Window, size Size, resizeChan chan Size) *Html {
 		currSize = currSize
 		for {
 			select {
-			case newSize := <- resizeChan:
+			case newSize := <- env.ResizeChan:
 				currSize = newSize
 				rSize := ClampBounds(bounds, newSize)
 				win.UpdateSize(w.id, rSize)

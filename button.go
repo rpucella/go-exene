@@ -19,14 +19,14 @@ func NewButton(bounds Bounds, label string, act func()) *Button {
 }
 
 
-func (w *Button) Realize(win Window, size Size, resizeChan chan Size) *Html {
+func (w *Button) Realize(win Window, size Size, env Environment) *Html {
 	if w.win != nil {
 		return nil
 	}
 	w.win = win
 	rSize := ClampBounds(w.bounds, size)
 	eventChan := make(chan bool)
-	win.RegisterEventChan(w.id, eventChan)
+	win.RegisterEventChan(w.id, "click", eventChan)
 	go func() {
 		for {
 			// Also: handle destroy messages?
@@ -34,7 +34,7 @@ func (w *Button) Realize(win Window, size Size, resizeChan chan Size) *Html {
 			case <- eventChan:
 				w.action()
 
-			case newSize := <- resizeChan:
+			case newSize := <- env.ResizeChan:
 				rSize := ClampBounds(w.bounds, newSize)
 				win.UpdateSize(w.id, rSize)
 			}

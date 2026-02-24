@@ -130,7 +130,8 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		height := int(initMsg["height"].(float64))
 		log.Printf("viewport size %d x %d\n", width, height)
 		size := Size{width, height}
-		html := sh.Init(window, size, resizeChan)
+		env := Environment{resizeChan, nil, nil}
+		html := sh.Init(window, size, env)
 		outgoing2 := struct{Type string `json:"type"`; Widget *Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
 		if err != nil {
@@ -145,8 +146,10 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 				if obj["type"].(string) == "event" {
 					// Assume click event.
 					target := obj["target"].(string)
+					event := obj["name"].(string)
+					key := makeKey(target, event)
 					// Dispatch by sending to the shell instead?
-					dispatchMap[target] <- true
+					dispatchMap[key] <- true
 				} else if obj["type"].(string) == "resize" {
 					width := int(obj["width"].(float64))
 					height := int(obj["height"].(float64))
@@ -185,6 +188,10 @@ func WebSocketMessagePump(conn *websocket.Conn, inputChan chan map[string]any) {
 	}
 }
 
+func makeKey(wid string, event string) string {
+	return fmt.Sprintf("%s::%s", wid, event)
+}
+
 type Window interface {
 	// Having widget IDs in the interface is slightly uncouth.
 	UpdateSize(WId, Size)
@@ -194,7 +201,7 @@ type Window interface {
 	DeleteChild(WId, int)
 	HideChild(WId, int)
 	UnhideChild(WId, int)
-	RegisterEventChan(WId, chan bool)
+	RegisterEventChan(WId, string, chan bool)
 }
 
 type HtmlWindow struct {
@@ -210,8 +217,9 @@ func (hw *HtmlWindow) UpdateText(wid WId, text string) {
 	hw.updateChan <- map[string]any{"target": wid.String(), "type": "update-text", "text": text}
 }
 
-func (hw *HtmlWindow) RegisterEventChan(wid WId, eventChan chan bool) {
-	hw.dispatchMap[wid.String()] = eventChan
+func (hw *HtmlWindow) RegisterEventChan(wid WId, event string, eventChan chan bool) {
+	key := makeKey(wid.String(), event)
+	hw.dispatchMap[key] = eventChan
 }
 
 func (hw *HtmlWindow) InsertChild(wid WId, index int, widget *Html) {
