@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"github.com/gorilla/websocket"
 	"encoding/json"
+	"mime"
 )
 
 
@@ -37,6 +38,9 @@ func NewBrowserApp(sh Shell, browser []string) *App {
 	url := fmt.Sprintf("http://localhost:%d", port)
 	log.Printf("listening on port %d\n", port)
 	mux := http.NewServeMux()
+	if err := mime.AddExtensionType(".js", "application/javascript"); err != nil {
+		panic(err)
+	}
 	mux.HandleFunc("GET /", GetPage(port))
 	mux.HandleFunc("GET /sdk.js", func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "web/sdk.js") })
 	mux.HandleFunc("GET /socket", WebSocketHandler(sh))
