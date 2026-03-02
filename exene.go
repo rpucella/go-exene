@@ -204,8 +204,8 @@ type Window interface {
 	// Having widget IDs in the interface is slightly uncouth.
 	UpdateSize(WId, Size)
 	UpdateText(WId, string)
-	InsertChild(WId, int, *Html)
-	AppendChild(WId, *Html)
+	InsertChildren(WId, int, []*Html)
+	AppendChildren(WId, []*Html)
 	DeleteChild(WId, int)
 	DeleteChildren(WId)
 	HideChild(WId, int)
@@ -231,12 +231,12 @@ func (hw *HtmlWindow) RegisterEventChan(wid WId, event string, eventChan chan bo
 	hw.dispatchMap[key] = eventChan
 }
 
-func (hw *HtmlWindow) InsertChild(wid WId, index int, widget *Html) {
-	hw.updateChan <- map[string]any{"target": wid.String(), "type": "insert-child", "index": index, "widget": widget}
+func (hw *HtmlWindow) InsertChildren(wid WId, index int, widgets []*Html) {
+	hw.updateChan <- map[string]any{"target": wid.String(), "type": "insert-children", "index": index, "widgets": widgets}
 }
 
-func (hw *HtmlWindow) AppendChild(wid WId, widget *Html) {
-	hw.updateChan <- map[string]any{"target": wid.String(), "type": "append-child", "widget": widget}
+func (hw *HtmlWindow) AppendChildren(wid WId, widgets []*Html) {
+	hw.updateChan <- map[string]any{"target": wid.String(), "type": "append-children", "widgets": widgets}
 }
 
 func (hw *HtmlWindow) DeleteChild(wid WId, index int) {

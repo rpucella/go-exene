@@ -8,7 +8,7 @@ type Box struct {
 	id WId
 	box BoxEntry
 	win Window
-	insertChan chan Pair[int, BoxEntry]
+	insertChan chan Pair[int, []BoxEntry]
 	dropChan chan int
 }
 
@@ -22,7 +22,7 @@ func (w *Box) Realize(win Window, size Size, env Environment) *Html {
 		return nil
 	}
 	w.win = win
-	insertChan := make(chan Pair[int, BoxEntry])
+	insertChan := make(chan Pair[int, []BoxEntry])
 	w.insertChan = insertChan
 	dropChan := make(chan int)
 	w.dropChan = dropChan
@@ -35,16 +35,25 @@ func (w *Box) BoundsOf() Bounds {
 }
 
 func (w *Box) Insert(idx int, box BoxEntry) {
-	w.insertChan <- NewPair(idx, box)
+	w.insertChan <- NewPair(idx, []BoxEntry{box})
+}
+
+func (w *Box) InsertAll(idx int, boxes []BoxEntry) {
+	w.insertChan <- NewPair(idx, boxes)
 }
 
 func (w *Box) Delete(idx int) {
-	// Pass -1 to delete all.
 	w.dropChan <- idx
 }
 
+func (w *Box) DeleteAll() {
+	// Pass -1 to delete all.
+	w.dropChan <- -1
+}
+
+
 type BoxEntry interface{
-	boxRealize(Window, Size, direction, Environment, chan Pair[int, BoxEntry], chan int) *Html
+	boxRealize(Window, Size, direction, Environment, chan Pair[int, []BoxEntry], chan int) *Html
 	boxBoundsOf(direction) Bounds
 }
 
@@ -129,7 +138,7 @@ func NewGlue(d Dim) BoxGlue {
 	return BoxGlue{d}
 }
 	
-func (b BoxList) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
+func (b BoxList) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, []BoxEntry], dropChan chan int) *Html {
 	dir := b.dir
 	align := b.align
 	boxes := b.boxes
@@ -162,26 +171,29 @@ func (b BoxList) boxRealize(win Window, size Size, parentDir direction, env Envi
 				}
 				win.UpdateSize(id, rSize)
 
-			case pair := <- insertChan:
-				index, box := pair.Get()
-				subResizeChan := make(chan Size)
-				currentBoxes = insertInto(currentBoxes, index, box)
-				currentResizeChans = insertInto(currentResizeChans, index, subResizeChan)
+			case idxBoxes:= <- insertChan:
+				index, boxes := idxBoxes.Get()
+				isAppend := (index == len(currentBoxes))
+				for i, box := range boxes {
+					subResizeChan := make(chan Size)
+					currentBoxes = insertInto(currentBoxes, i + index, box)
+					currentResizeChans = insertInto(currentResizeChans, i + index, subResizeChan)
+				}
 				bounds := b.boxBoundsOf(parentDir)
 				rSize := ClampBounds(bounds, currSize)
 				sizes := calculateSizes(currentBoxes, dir, rSize)
-				env := Environment{subResizeChan, nil, nil}
-				subHtml := box.boxRealize(win, sizes[index], dir, env, nil, nil)
-				if index == len(currentBoxes) - 1 {
-					win.AppendChild(id, subHtml)
-				} else {
-					win.InsertChild(id, index, subHtml)
+				subHtmls = make([]*Html, len(boxes))
+				for i, _ := range boxes {
+					env := Environment{currentResizeChans[i + index], nil, nil}
+					subHtmls[i] = currentBoxes[i + index].boxRealize(win, sizes[i + index], dir, env, nil, nil)
 				}
-				for i, ch := range currentResizeChans {
-					if i != index {
-						// Skip the one we just inserted!
-						ch <- sizes[i]
-					}
+				if isAppend {
+					win.AppendChildren(id, subHtmls)
+				} else {
+					win.InsertChildren(id, index, subHtmls)
+				}
+				for j, ch := range currentResizeChans {
+					ch <- sizes[j]
 				}
 				// That's not enough:
 				win.UpdateSize(id, rSize)
@@ -246,7 +258,7 @@ func (b BoxList) boxBoundsOf(parentDir direction) Bounds {
 	return Bounds{width, height}
 }
 
-func (b BoxWidget) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
+func (b BoxWidget) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, []BoxEntry], dropChan chan int) *Html {
 	go func(){
 		for {
 			select{
@@ -262,7 +274,7 @@ func (b BoxWidget) boxBoundsOf(parentDir direction) Bounds {
 	return b.widget.BoundsOf()
 }
 
-func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, BoxEntry], dropChan chan int) *Html {
+func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, env Environment, insertChan chan Pair[int, []BoxEntry], dropChan chan int) *Html {
 	id := NewId()
 	bounds := b.boxBoundsOf(parentDir)
 	boxSize := ClampBounds(bounds, size)

@@ -64,14 +64,20 @@ function connect(url) {
             const elt = document.querySelector(`#widget-${msg.target}`)
             elt.style.height = `${msg.height}px`
             elt.style.width = `${msg.width}px`
-        } else if (msg.type == "insert-child") {
+        } else if (msg.type == "insert-children") {
             const elt = document.querySelector(`#widget-${msg.target}`)
-            const newElt = createWidget(msg.widget)
-            elt.insertBefore(newElt, elt.childNodes[msg.index])
-        } else if (msg.type == "append-child") {
+            let i = 0
+            for (const w of msg.widgets) {
+                const newElt = createWidget(w)
+                elt.insertBefore(newElt, elt.childNodes[msg.index + i])
+                i += 1
+            }
+        } else if (msg.type == "append-children") {
             const elt = document.querySelector(`#widget-${msg.target}`)
-            const newElt = createWidget(msg.widget)
-            elt.appendChild(newElt)
+            for (const w of msg.widgets) {
+                const newElt = createWidget(w)
+                elt.appendChild(newElt)
+            }
         } else if (msg.type == "delete-child") {
             const elt = document.querySelector(`#widget-${msg.target}`)
             elt.removeChild(elt.childNodes[msg.index])
