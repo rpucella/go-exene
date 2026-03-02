@@ -65,8 +65,12 @@ func DefaultStyle(size Size) map[string]string {
 	styling["display"] = "block"
 	styling["padding"] = "0"
 	styling["margin"] = "0"
-	styling["height"] = fmt.Sprintf("%dpx", size.Height)
-	styling["width"] = fmt.Sprintf("%dpx", size.Width)
+	if size.Height >= 0 {
+		styling["height"] = fmt.Sprintf("%dpx", size.Height)
+	}
+	if size.Width >= 0 {
+		styling["width"] = fmt.Sprintf("%dpx", size.Width)
+	}
 	styling["transition"] = "height 0.1s, width 0.1s"
 	styling["overflow"] = "hidden"
 	styling["boxSizing"] = "border-box"
@@ -134,8 +138,6 @@ func WithTextAlign(v string) StyleOption {
 	}
 }
 
-
-
 func NewDim(v1, v2, v3 int) Dim {
 	return Dim{v1, v2, v3}
 }
@@ -149,6 +151,10 @@ func FixDim(v int) Dim {
 }
 
 func CompatibleDim(d Dim, size int) bool {
+	// Not used anywhere?
+	if size < 0 {
+		return true
+	}
 	if size < d.Min {
 		return false
 	}
@@ -159,6 +165,9 @@ func CompatibleDim(d Dim, size int) bool {
 }
 
 func ClampDim(d Dim, size int) int {
+	if size < 0 {
+		return d.Max
+	}
 	if size < d.Min {
 		return d.Min
 	}
