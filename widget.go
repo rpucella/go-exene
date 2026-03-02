@@ -63,6 +63,8 @@ type Style struct {
 func DefaultStyle(size Size) map[string]string {
 	styling := make(map[string]string)
 	styling["display"] = "block"
+	styling["padding"] = "0"
+	styling["margin"] = "0"
 	styling["height"] = fmt.Sprintf("%dpx", size.Height)
 	styling["width"] = fmt.Sprintf("%dpx", size.Width)
 	styling["transition"] = "height 0.1s, width 0.1s"
