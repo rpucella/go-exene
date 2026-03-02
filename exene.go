@@ -117,6 +117,7 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		updateChan := make(chan map[string]any)
 		dispatchMap := make(map[string]chan bool)
 		resizeChan := make(chan Size)
+		destroyChan := make(chan bool)
 		window := &HtmlWindow{updateChan, dispatchMap}
 		_, initMessage, err := conn.ReadMessage()
 		if err != nil {
@@ -137,7 +138,7 @@ func WebSocketHandler(sh Shell) func(http.ResponseWriter, *http.Request) {
 		height := int(initMsg["height"].(float64))
 		log.Printf("viewport size %d x %d\n", width, height)
 		size := Size{width, height}
-		env := Environment{resizeChan, nil, nil}
+		env := Environment{resizeChan, destroyChan, nil}
 		html := sh.Init(window, size, env)
 		outgoing2 := struct{Type string `json:"type"`; Widget *Html `json:"widget"`}{"widget", html}
 		msg2, err := json.Marshal(outgoing2)
@@ -206,6 +207,7 @@ type Window interface {
 	InsertChild(WId, int, *Html)
 	AppendChild(WId, *Html)
 	DeleteChild(WId, int)
+	DeleteChildren(WId)
 	HideChild(WId, int)
 	UnhideChild(WId, int)
 	RegisterEventChan(WId, string, chan bool)
@@ -239,6 +241,10 @@ func (hw *HtmlWindow) AppendChild(wid WId, widget *Html) {
 
 func (hw *HtmlWindow) DeleteChild(wid WId, index int) {
 	hw.updateChan <- map[string]any{"target": wid.String(), "type": "delete-child", "index": index}
+}
+
+func (hw *HtmlWindow) DeleteChildren(wid WId) {
+	hw.updateChan <- map[string]any{"target": wid.String(), "type": "delete-children"}
 }
 
 func (hw *HtmlWindow) HideChild(wid WId, index int) {

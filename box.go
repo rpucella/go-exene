@@ -39,9 +39,9 @@ func (w *Box) Insert(idx int, box BoxEntry) {
 }
 
 func (w *Box) Delete(idx int) {
+	// Pass -1 to delete all.
 	w.dropChan <- idx
 }
-
 
 type BoxEntry interface{
 	boxRealize(Window, Size, direction, Environment, chan Pair[int, BoxEntry], chan int) *Html
@@ -190,6 +190,17 @@ func (b BoxList) boxRealize(win Window, size Size, parentDir direction, env Envi
 				// But this is a resize request that's propagating up!
 
 			case index := <- dropChan:
+				if index < 0 {
+					// Delete all.
+					currentBoxes = make([]BoxEntry, 0)
+					currentResizeChans = make([]chan Size, 0)
+					bounds := b.boxBoundsOf(parentDir)
+					rSize := ClampBounds(bounds, currSize)
+					win.DeleteChildren(id)
+					// Need to destroy the deleted boxes!
+					win.UpdateSize(id, rSize)
+					break
+				}
 				currentBoxes = deleteFrom(currentBoxes, index)
 				currentResizeChans = deleteFrom(currentResizeChans, index)
 				bounds := b.boxBoundsOf(parentDir)
@@ -216,6 +227,9 @@ func (b BoxList) boxRealize(win Window, size Size, parentDir direction, env Envi
 func (b BoxList) boxBoundsOf(parentDir direction) Bounds {
 	boxes := b.boxes
 	dir := b.dir
+	if len(boxes) == 0 {
+		return NewBounds(NewDim(0, 0, -1), NewDim(0, 0, -1))
+	}
 	width := FixDim(0)
 	height := FixDim(0)
 	for _, b := range boxes {
@@ -270,8 +284,8 @@ func (b BoxGlue) boxRealize(win Window, size Size, parentDir direction, env Envi
 }
 
 func (b BoxGlue) boxBoundsOf(parentDir direction) Bounds {
-	var width Dim
-	var height Dim
+	width := FixDim(0)
+	height := FixDim(0)
 	if parentDir == dirVertical {
 		height = b.dim
 	}

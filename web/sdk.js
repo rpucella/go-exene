@@ -75,6 +75,11 @@ function connect(url) {
         } else if (msg.type == "delete-child") {
             const elt = document.querySelector(`#widget-${msg.target}`)
             elt.removeChild(elt.childNodes[msg.index])
+        } else if (msg.type == "delete-children") {
+            const elt = document.querySelector(`#widget-${msg.target}`)
+            while (elt.firstChild) {
+                elt.removeChild(elt.firstChild)
+            }
         } else if (msg.type == "hide-child") {
             const elt = document.querySelector(`#widget-${msg.target}`).childNodes[msg.index]
             if (elt.style.display !== "none") {
