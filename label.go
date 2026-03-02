@@ -1,6 +1,7 @@
 package exene
 
 import (
+	"fmt"
 )
 
 type Label struct {
@@ -49,6 +50,7 @@ func (w *Label) Realize(win Window, size Size, env Environment) *Html {
 		Id(w.id.String()).
 		Styles(DefaultStyle(rSize)).
 		Styles(w.style.AsMap()).
+		Style("line-height", fmt.Sprintf("%dpx", rSize.Height)).
 		Text(w.text)
 }
 

@@ -57,7 +57,7 @@ type Style struct {
 	FontSize string
 	FontStyle string
 	FontWeight string
-	Align string
+	TextAlign string
 }
 
 func DefaultStyle(size Size) map[string]string {
@@ -89,8 +89,8 @@ func (s *Style) ExtendStyle(styling map[string]string) {
 	if s.FontWeight != "" {
 		styling["fontWeight"] = s.FontWeight
 	}
-	if s.Align != "" {
-		styling["textAlign"] = s.Align
+	if s.TextAlign != "" {
+		styling["textAlign"] = s.TextAlign
 	}
 }
 
@@ -126,9 +126,9 @@ func WithFontWeight(v string) StyleOption {
 	}
 }
 
-func WithAlign(v string) StyleOption {
+func WithTextAlign(v string) StyleOption {
 	return func(s *Style) {
-		s.Align = v
+		s.TextAlign = v
 	}
 }
 

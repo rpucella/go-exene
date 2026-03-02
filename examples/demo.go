@@ -26,13 +26,13 @@ func MainWidget() ex.Widget {
 	title := ex.NewLabel(
 		ex.FixBounds(400, 50),
 		"Counter Demo",
-		ex.WithAlign("center"),
+		ex.WithTextAlign("center"),
 		ex.WithFontSize(36),
 	)
 	label := ex.NewLabel(
 		ex.FixBounds(400, 40),
 		"Count = 0",
-		ex.WithAlign("center"),
+		ex.WithTextAlign("center"),
 	)
 	setLabel := func(newCount int) {
 		count = newCount
@@ -92,7 +92,7 @@ func MainWidget() ex.Widget {
 				label := ex.NewLabel(
 					ex.FixBounds(200, 20),
 					fmt.Sprintf("Extra #%d", extraCount),
-					ex.WithAlign("center"),
+					ex.WithTextAlign("center"),
 				)
 				extraPane.Insert(2, ex.NewWBox(label))
 			},
@@ -160,7 +160,7 @@ func MainWidget() ex.Widget {
 					ex.FixDim(40),
 				),
 				"Go-eXene Demo",
-				ex.WithAlign("center"),
+				ex.WithTextAlign("center"),
 				ex.WithFontSize(36),
 			)),
 			ex.NewGlue(ex.FixDim(24)),

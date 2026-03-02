@@ -7,14 +7,19 @@ type Button struct {
     bounds Bounds
 	id WId
 	label string
+	style *Style
 	action func()
 	win Window
 }
 
 
-func NewButton(bounds Bounds, label string, act func()) *Button {
+func NewButton(bounds Bounds, label string, act func(), styles ...StyleOption) *Button {
 	id := NewId()
-	button := &Button{bounds, id, label, act, nil}
+	style := &Style{}
+	for _, s := range styles {
+		s(style)
+	}
+	button := &Button{bounds, id, label, style, act, nil}
 	return button
 }
 
@@ -44,6 +49,7 @@ func (w *Button) Realize(win Window, size Size, env Environment) *Html {
 		Id(w.id.String()).
 		Text(w.label).
 		Styles(DefaultStyle(rSize)).
+		Styles(w.style.AsMap()).
 		Style("cursor", "pointer").
 		Event("click")
 }
